@@ -18,6 +18,7 @@ import {
     DialogActions
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import RobotIcon from '@mui/icons-material/SmartToy';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
@@ -109,7 +110,7 @@ function App() {
             borderColor: 'rgba(0, 255, 0, 1)',
             borderWidth: 2,
             fill: true,
-            backgroundColor: 'rgba(128, 128, 128, 0.2)',
+            backgroundColor: 'rgba(0, 0, 255, 0.2)', // Azul transparente para o preenchimento
             tension: 0.1,
             pointRadius: 5,
             pointHoverRadius: 8,
@@ -123,11 +124,23 @@ function App() {
     const chartOptions = {
         scales: {
             x: {
-                display: true
+                display: true,
+                ticks: {
+                    color: '#fff' // Cor das marcações do eixo x
+                },
+                grid: {
+                    color: '#444' // Cor da grade do eixo x
+                }
             },
             y: {
                 display: true,
-                position: 'right'
+                position: 'right',
+                ticks: {
+                    color: '#fff' // Cor das marcações do eixo y
+                },
+                grid: {
+                    color: '#444' // Cor da grade do eixo y
+                }
             }
         },
         plugins: {
@@ -157,119 +170,137 @@ function App() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#000' }}>
             <AppBar position="static">
                 <Toolbar>
                     <Typography variant="h6">
-                        BOT DERIV
+                        SUPER BOTZ
                     </Typography>
                 </Toolbar>
             </AppBar>
-            <Container component="main" sx={{ flexGrow: 1, py: 4 }}>
+            <Container component="main" sx={{ flexGrow: 1, py: 4, backgroundColor: '#000' }}>
                 <Grid container spacing={4}>
                     <Grid item xs={12} md={8}>
-                        <Box>
-                            <Typography variant="h5" component="h2" gutterBottom>
-                                Tick Chart:
+                        <Box sx={{ backgroundColor: '#000', padding: 2 }}> {/* Fundo preto para o gráfico */}
+                            <Typography variant="h5" component="h2" gutterBottom sx={{ color: '#fff' }}>
+                                
                             </Typography>
                             <Line data={tickData} options={chartOptions} />
                         </Box>
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <Box>
+                        <Box sx={{ color: '#fff', backgroundColor: '#333', padding: 2, borderRadius: 2 }}>
                             <Typography variant="h6">
-                                Saldo: {balance}
+                                Conta Virtual: ${balance} USD
                             </Typography>
                             <Typography variant="h6">
-                                Lucro/Prejuízo: {profit}
+                                Lucro/Prejuízo: ${profit}
                             </Typography>
-                        </Box>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleOpen}
-                            fullWidth
-                        >
-                            Selecionar Bot
-                        </Button>
-                        <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-                            <DialogTitle>
-                                Bots Livres
-                                <IconButton
-                                    aria-label="close"
-                                    onClick={handleClose}
-                                    sx={{ position: 'absolute', right: 8, top: 8 }}
+                            <Box mt={2}>
+                                <Typography variant="body1" gutterBottom>
+                                    Operações:
+                                </Typography>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={handleOpen}
+                                    fullWidth
+                                    sx={{ mb: 1 }}
                                 >
-                                    <CloseIcon />
-                                </IconButton>
-                            </DialogTitle>
-                            <DialogContent dividers sx={{ backgroundColor: '#333' }}>
-                                <Grid container spacing={2}>
-                                    {bots.map((bot, index) => (
-                                        <Grid item xs={6} key={index}>
-                                            <Paper
-                                                onClick={() => handleBotClick(bot)}
-                                                sx={{ display: 'flex', alignItems: 'center', padding: 2, backgroundColor: '#444', color: 'white', cursor: 'pointer' }}
-                                            >
-                                                <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
-                                                <Typography variant="body1" component="div">
-                                                    {bot}
-                                                </Typography>
-                                            </Paper>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </DialogContent>
-                            <DialogActions>
-                                <Button onClick={handleClose} color="primary">
-                                    Fechar
+                                    Selecionar Bot
                                 </Button>
-                            </DialogActions>
-                        </Dialog>
-                        {botRunning ? (
-                            <Button
-                                variant="contained"
-                                color="secondary"
-                                onClick={stopBot}
-                                fullWidth
-                            >
-                                Parar Bot
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                onClick={sendMessage}
-                                fullWidth
-                                disabled={!selectedBot}
-                            >
-                                Enviar
-                            </Button>
-                        )}
-                        <Box my={4}>
-                            <Typography variant="h5" component="h2" gutterBottom>
-                                Resp:
+                                <Dialog
+                                    open={open}
+                                    onClose={handleClose}
+                                    fullWidth
+                                    maxWidth={false}
+                                    PaperProps={{
+                                        sx: { width: '75%', maxHeight: '75%' }
+                                    }}
+                                >
+                                    <DialogTitle sx={{ backgroundColor: '#222', color: '#fff' }}>
+                                        Bots Livres
+                                        <IconButton
+                                            aria-label="close"
+                                            onClick={handleClose}
+                                            sx={{ position: 'absolute', right: 8, top: 8, color: '#fff' }}
+                                        >
+                                            <CloseIcon />
+                                        </IconButton>
+                                    </DialogTitle>
+                                    <DialogContent dividers sx={{ backgroundColor: '#222', display: 'flex', justifyContent: 'center' }}>
+                                        <Grid container spacing={2}>
+                                            {bots.map((bot, index) => (
+                                                <Grid item xs={12} sm={6} key={index}>
+                                                    <Paper
+                                                        onClick={() => handleBotClick(bot)}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            padding: 2,
+                                                            backgroundColor: '#333',
+                                                            color: 'white',
+                                                            cursor: 'pointer',
+                                                            '&:hover': {
+                                                                backgroundColor: '#444',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
+                                                        <Typography variant="body1" component="div" sx={{ flexGrow: 1 }}>
+                                                            {bot}
+                                                        </Typography>
+                                                        <ArrowForwardIosIcon sx={{ color: '#ff0' }} />
+                                                    </Paper>
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    </DialogContent>
+                                    <DialogActions sx={{ backgroundColor: '#222' }}>
+                                        <Button onClick={handleClose} color="primary">
+                                            Fechar
+                                        </Button>
+                                    </DialogActions>
+                                </Dialog>
+                                {botRunning ? (
+                                    <Button
+                                        variant="contained"
+                                        color="secondary"
+                                        onClick={stopBot}
+                                        fullWidth
+                                    >
+                                        Parar Bot
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={sendMessage}
+                                        fullWidth
+                                        disabled={!selectedBot}
+                                    >
+                                        Iniciar Bot
+                                    </Button>
+                                )}
+                            </Box>
+                        </Box>
+                    </Grid>
+                    <Grid item xs={12}>
+                        <Box sx={{ backgroundColor: '#333', color: '#fff', padding: 2, borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom>
+                                Respostas do WebSocket:
                             </Typography>
-                            <Paper>
-                                <List>
-                                    {responses.map((response, index) => (
-                                        <ListItem key={index}>
-                                            <ListItemText primary={response} />
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            </Paper>
+                            <List>
+                                {responses.map((response, index) => (
+                                    <ListItem key={index}>
+                                        <ListItemText primary={response} />
+                                    </ListItem>
+                                ))}
+                            </List>
                         </Box>
                     </Grid>
                 </Grid>
             </Container>
-            <Box component="footer" sx={{ py: 2, mt: 'auto', backgroundColor: '#f5f5f5' }}>
-                <Container maxWidth="sm">
-                    <Typography variant="body1" color="textSecondary" align="center">
-                        © 2024 BOT DERIV. Todos os direitos reservados.
-                    </Typography>
-                </Container>
-            </Box>
         </Box>
     );
 }

@@ -1,14 +1,29 @@
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.account-info {
-    text-align: right;
-}
-
-.account-info h6 {
+body {
     margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #000; /* Fundo preto */
+    color: #fff; /* Texto branco */
+}
+
+code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+.MuiAppBar-root {
+    background-color: #1c1c1c !important; /* Fundo cinza-escuro */
+}
+
+.MuiButton-containedPrimary {
+    background-color: #1c1c1c !important; /* Fundo cinza-escuro para o botão */
+    color: #fff !important; /* Texto branco */
+}
+
+.MuiTypography-h6 {
+    color: #fff !important; /* Texto branco para títulos */
+}
+
+.MuiTypography-body1 {
+    color: #fff !important; /* Texto branco para corpo */
 }

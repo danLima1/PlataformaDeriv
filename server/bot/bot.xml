@@ -1,3 +1,9 @@
+
+Vamos corrigir os bots XML fornecidos para que eles funcionem corretamente. Aqui está o código completo para cada bot, com os IDs de variáveis mapeados corretamente e ajustados para evitar erros de variáveis não encontradas.
+
+Bot 1
+xml
+Copy code
 <xml xmlns="http://www.w3.org/1999/xhtml" collection="false">
   <variables>
     <variable type="" id="UG^(k^gK@bNjYl8L~zxI">_profit</variable>

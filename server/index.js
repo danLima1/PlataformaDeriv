@@ -52,6 +52,7 @@ const botSymbols = {
 
 wss.on('connection', (ws) => {
     console.log('New client connected');
+    startTickStream(ws, 'R_100'); // Símbolo padrão ou pode ser configurável
 
     ws.on('message', (message) => {
         console.log(`Received message => ${message}`);
@@ -81,7 +82,7 @@ const runBotLogic = async (botName, ws) => {
         const xml = fs.readFileSync(xmlFilePath, 'utf-8');
         const xmlData = await xml2js.parseStringPromise(xml);
 
-        initializeVariables(xmlData.xml.variables[0].variable);
+        initializeVariables(xmlData.xml.variables[0].variable, botName);
 
         // Inicie a transmissão de ticks e lógica do bot
         const symbol = botSymbols[botName] || 'R_100'; // Padrão para 'R_100' se o bot não estiver no mapeamento
@@ -100,11 +101,6 @@ const startTickStream = (ws, symbol) => {
     });
 
     derivWs.on('message', async (data) => {
-        if (!appState.running) {
-            derivWs.close();
-            return;
-        }
-
         const response = JSON.parse(data);
 
         if (response.error) {
@@ -150,13 +146,13 @@ const startTickStream = (ws, symbol) => {
             }));
 
             // Lógica de compra
-            if (shouldBuy(appState.lastTick, appState.sma)) {
+            if (appState.running && shouldBuy(appState.lastTick, appState.sma)) {
                 requestProposal(derivWs, appState.stake, symbol);
             }
         }
 
         if (response.msg_type === 'proposal') {
-            if (shouldBuy(appState.lastTick, appState.sma)) {
+            if (appState.running && shouldBuy(appState.lastTick, appState.sma)) {
                 buyContract(derivWs, response.proposal.id, appState.stake, ws);
             }
         }
@@ -172,14 +168,13 @@ const startTickStream = (ws, symbol) => {
         if (response.msg_type === 'sell') {
             const profit = parseFloat(response.sell.sold_for) - appState.stake;
             appState.totalProfit += profit;
-            ws.send(JSON.stringify({
-                type: 'transaction',
-                profit: profit.toFixed(2),
-                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
-            }));
+
+            let message = `Contrato finalizado com ${profit >= 0 ? 'lucro' : 'prejuízo'} de $${profit.toFixed(2)}`;
             ws.send(JSON.stringify({
                 type: 'contract_finalizado',
-                message: 'Contrato finalizado'
+                message: message,
+                profit: profit.toFixed(2),
+                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
             }));
         }
     });
@@ -251,67 +246,88 @@ app.get('/api/bots', (req, res) => {
     });
 });
 
-function initializeVariables(variables) {
+const initializeVariables = (variables, botName) => {
     try {
         console.log("Initializing variables from XML...");
 
-        const idsToVariables = {
-            stake: 'b.8A=Z%v|?!R]8swby2J',
-            initialStake: '[JQ:6ujo0P~5.c48sN/n',
-            MartingaleFactor: 'Qs!p}1o9ynq+8,VB=Oq.',
-            targetProfit: 'z(47tS:MB6xXj~Sa3R7j'
+        // Defina o mapeamento para cada tipo de bot
+        const idMappings = {
+            'bot1': { // Exemplo de bot 1
+                stake: 'b.8A=Z%v|?!R]8swby2J',
+                initialStake: '[JQ:6ujo0P~5.c48sN/n',
+                MartingaleFactor: 'Qs!p}1o9ynq+8,VB=Oq.',
+                targetProfit: 'z(47tS:MB6xXj~Sa3R7j'
+            },
+            'bot2': { // Exemplo de bot 2
+                stake: 'W#MDqi;8#K?,S(@3jcX}',
+                initialStake: '.#?I=EeXYD}6l!Cf.gZ6',
+                MartingaleFactor: 'S%:!W?llAvWoj1`W/LVa',
+                targetProfit: 'AwHaJ$uP6%`gBp!D-t!['
+            },
+            // Adicione mais mapeamentos conforme necessário
         };
 
-        for (const [key, id] of Object.entries(idsToVariables)) {
-            const value = getVariableValue(variables, id, appState[key]);
-            if (value !== undefined) {
-                appState[key] = value;
-            }
-            console.log(`Initialized ${key}: ${appState[key]}`);
+        const mapping = idMappings[botName];
+        if (!mapping) {
+            console.error(`No variable mapping found for bot: ${botName}`);
+            return;
         }
+
+        variables.forEach((variable) => {
+            const id = variable.$.id;
+            const value = parseFloat(variable.$.value);
+            if (id === mapping.stake) {
+                appState.stake = value;
+            } else if (id === mapping.initialStake) {
+                appState.initialStake = value;
+            } else if (id === mapping.MartingaleFactor) {
+                appState.MartingaleFactor = value;
+            } else if (id === mapping.targetProfit) {
+                appState.targetProfit = value;
+            }
+        });
+
+        console.log('Initialized variables:', appState);
 
     } catch (error) {
-        console.error("Error initializing variables:", error.message);
-        throw new Error("Failed to initialize variables from XML");
+        console.error('Failed to initialize variables:', error.message);
     }
-}
+};
 
-function getVariableValue(variables, id, defaultValue) {
-    const variable = variables.find(v => v.$.id === id);
-    if (variable && variable._) {
-        const value = parseFloat(variable._);
-        if (!isNaN(value)) {
-            return value;
-        } else {
-            console.warn(`Variable with ID ${id} has an invalid value: ${variable._}. Using default value: ${defaultValue}`);
-            return defaultValue;
+const updateAppState = (response) => {
+    if (response.msg_type === 'history') {
+        const history = response.history;
+        const prices = history.prices.map(parseFloat);
+        appState.smaHistory = calculateSMA(prices, 10);
+    } else if (response.msg_type === 'tick') {
+        const tick = response.tick;
+        appState.lastTick = parseFloat(tick.quote);
+        if (appState.smaHistory.length >= 10) {
+            appState.sma = calculateSMA([appState.lastTick, ...appState.smaHistory], 10).slice(-1)[0];
         }
-    } else {
-        console.warn(`Variable with ID ${id} not found. Using default value: ${defaultValue}`);
-        return defaultValue;
     }
-}
+};
 
-function handleError(ws, errorMessage) {
-    console.error("Erro:", errorMessage);
-    ws.send(JSON.stringify({ type: 'error', message: `Erro: ${errorMessage}` }));
-}
+const calculateSMA = (data, period) => {
+    if (data.length < period) return [];
 
-function updateAppState(data) {
-    if (data.msg_type === 'history') {
-        appState.smaHistory = data.history.prices.map(parseFloat);
-        appState.lastTick = parseFloat(appState.smaHistory.slice(-1)[0]);
-        appState.sma = calculateSMA(appState.smaHistory, 8);
-    } else if (data.msg_type === 'tick') {
-        appState.lastTick = parseFloat(data.tick.quote);
-        appState.smaHistory.push(appState.lastTick);
-        appState.smaHistory = appState.smaHistory.slice(-8);
-        appState.sma = calculateSMA(appState.smaHistory, 8);
+    let sum = 0;
+    const sma = [];
+
+    for (let i = 0; i < data.length; i++) {
+        sum += data[i];
+        if (i >= period - 1) {
+            if (i >= period) {
+                sum -= data[i - period];
+            }
+            sma.push(sum / period);
+        }
     }
-}
 
-function calculateSMA(prices, period) {
-    if (prices.length < period) return null;
-    const sum = prices.slice(-period).reduce((acc, val) => acc + val, 0);
-    return sum / period;
-}
+    return sma;
+};
+
+const handleError = (ws, message) => {
+    console.error(message);
+    ws.send(JSON.stringify({ type: 'error', message }));
+};
