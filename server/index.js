@@ -1,10 +1,11 @@
 const express = require('express');
 const { Server } = require('ws');
 const fs = require('fs');
-const xml2js = require('xml2js');
 const path = require('path');
 const WebSocket = require('ws');
+const cors = require('cors');
 require('dotenv').config();
+const xml2js = require('xml2js');
 
 const app = express();
 const PORT = 3001;
@@ -15,18 +16,20 @@ if (!API_TOKEN) {
     throw new Error('API_TOKEN is not defined in the environment variables');
 }
 
+app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
+
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
 const wss = new Server({ server });
 
-// Estado da aplicação
-const appState = {
-    stake: null,
-    initialStake: null,
-    MartingaleFactor: null,
-    targetProfit: null,
+const initialAppState = {
+    stake: 1,
+    initialStake: 1,
+    MartingaleFactor: 2,
+    targetProfit: 10,
     totalProfit: 0,
     lowestBalance: null,
     lowestLoss: null,
@@ -34,7 +37,17 @@ const appState = {
     sma: null,
     currentContractId: null,
     smaHistory: [],
-    balance: null
+    balance: null,
+    running: false
+};
+
+let appState = { ...initialAppState };
+
+const botSymbols = {
+    'bot1': 'R_100',
+    'bot2': 'R_50',
+    'bot3': 'R_75',
+    // Adicione mais mapeamentos de bots para símbolos conforme necessário
 };
 
 wss.on('connection', (ws) => {
@@ -43,6 +56,16 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         console.log(`Received message => ${message}`);
         const messageStr = message.toString();
+
+        // Parar o bot
+        if (messageStr === 'stop') {
+            appState.running = false;
+            ws.send(JSON.stringify({ type: 'status', message: 'Bot stopped' }));
+            return;
+        }
+
+        // Reiniciar o estado e iniciar o bot novamente
+        appState = { ...initialAppState, running: true };
         runBotLogic(messageStr, ws);
     });
 
@@ -51,176 +74,227 @@ wss.on('connection', (ws) => {
     });
 });
 
-const runBotLogic = async (message, ws) => {
-    const xmlFilePath = path.join(__dirname, 'bot', 'bot.xml');
+const runBotLogic = async (botName, ws) => {
+    const xmlFilePath = path.join(__dirname, 'bot', `${botName}.xml`);
 
     try {
         const xml = fs.readFileSync(xmlFilePath, 'utf-8');
-        console.log("XML content:", xml);
         const xmlData = await xml2js.parseStringPromise(xml);
-        console.log("Parsed XML Data:", xmlData);
 
         initializeVariables(xmlData.xml.variables[0].variable);
 
-        if (message === 'execute_trade') {
-            const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-
-            derivWs.on('open', () => {
-                derivWs.send(JSON.stringify({ authorize: API_TOKEN }));
-            });
-
-            derivWs.on('message', async (data) => {
-                const response = JSON.parse(data);
-
-                if (response.error) {
-                    handleError(ws, response.error.message);
-                    return;
-                }
-
-                if (response.msg_type === 'authorize') {
-                    console.log("Autorizado na API da Deriv");
-                    derivWs.send(JSON.stringify({
-                        "ticks_history": "1HZ10V",
-                        "end": "latest",
-                        "count": 100
-                    }));
-
-                    // Solicita o saldo após a autorização
-                    derivWs.send(JSON.stringify({
-                        "balance": 1,
-                        "subscribe": 1
-                    }));
-                }
-
-                if (response.msg_type === 'balance') {
-                    appState.balance = response.balance.balance;
-                    ws.send(JSON.stringify({
-                        type: 'balance',
-                        balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
-                    }));
-                    console.log(`Saldo da conta: ${appState.balance}`);
-                }
-
-                if (response.msg_type === 'history') {
-                    updateAppState(response);
-                    console.log(`Último tick: ${appState.lastTick}, SMA: ${appState.sma}`);
-                    startTrading(derivWs, ws);
-                }
-
-                if (response.msg_type === 'proposal') {
-                    if (shouldBuy(appState.lastTick, appState.sma)) {
-                        buyContract(derivWs, response.proposal.id, appState.stake.toFixed(2), ws);
-                    } else {
-                        console.log("Condição de compra não satisfeita. Aguardando...");
-                    }
-                }
-
-                if (response.msg_type === 'buy') {
-                    appState.currentContractId = response.buy.contract_id;
-                    console.log(`Compra realizada com sucesso. ID do contrato: ${appState.currentContractId}`);
-
-                    appState.totalProfit += parseFloat(response.buy.profit);
-                    ws.send(JSON.stringify({
-                        type: 'transaction',
-                        profit: response.buy.profit.toFixed(2)
-                    }));
-                    if (appState.totalProfit >= appState.targetProfit) {
-                        ws.send(JSON.stringify({
-                            type: 'target_reached',
-                            totalProfit: appState.totalProfit.toFixed(2)
-                        }));
-                        derivWs.close();
-                    }
-                }
-
-                if (response.msg_type === 'tick') {
-                    updateAppState(response);
-                    console.log(`Último tick: ${appState.lastTick}, SMA: ${appState.sma}`);
-                    ws.send(JSON.stringify({
-                        type: 'tick',
-                        tick: appState.lastTick
-                    }));
-
-                    if (appState.currentContractId && shouldSell(response)) {
-                        sellContract(derivWs, appState.currentContractId, ws);
-                    }
-                }
-
-                if (response.msg_type === 'sell') {
-                    const profit = parseFloat(response.sell.sold_for) - appState.stake;
-                    appState.totalProfit += profit;
-                    ws.send(JSON.stringify({
-                        type: 'transaction',
-                        profit: profit.toFixed(2),
-                        balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
-                    }));
-                }
-            });
-
-        } else {
-            ws.send(`Unknown command: ${message}`);
-        }
+        // Inicie a transmissão de ticks e lógica do bot
+        const symbol = botSymbols[botName] || 'R_100'; // Padrão para 'R_100' se o bot não estiver no mapeamento
+        startTickStream(ws, symbol);
 
     } catch (err) {
-        ws.send(`Error processing request: ${err.message}`);
+        handleError(ws, err.message);
     }
 };
 
-// ===================== Funções Auxiliares =====================
+const startTickStream = (ws, symbol) => {
+    const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+
+    derivWs.on('open', () => {
+        derivWs.send(JSON.stringify({ authorize: API_TOKEN }));
+    });
+
+    derivWs.on('message', async (data) => {
+        if (!appState.running) {
+            derivWs.close();
+            return;
+        }
+
+        const response = JSON.parse(data);
+
+        if (response.error) {
+            handleError(ws, response.error.message);
+            return;
+        }
+
+        if (response.msg_type === 'authorize') {
+            derivWs.send(JSON.stringify({
+                "ticks_history": symbol,
+                "end": "latest",
+                "count": 100
+            }));
+
+            derivWs.send(JSON.stringify({
+                "balance": 1,
+                "subscribe": 1
+            }));
+        }
+
+        if (response.msg_type === 'balance') {
+            appState.balance = response.balance.balance;
+            ws.send(JSON.stringify({
+                type: 'balance',
+                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
+            }));
+        }
+
+        if (response.msg_type === 'history') {
+            updateAppState(response);
+            ws.send(JSON.stringify({
+                type: 'history',
+                prices: appState.smaHistory
+            }));
+            startTickSubscription(derivWs, ws, symbol); // Inicie a subscrição de ticks
+        }
+
+        if (response.msg_type === 'tick') {
+            updateAppState(response);
+            ws.send(JSON.stringify({
+                type: 'tick',
+                tick: appState.lastTick
+            }));
+
+            // Lógica de compra
+            if (shouldBuy(appState.lastTick, appState.sma)) {
+                requestProposal(derivWs, appState.stake, symbol);
+            }
+        }
+
+        if (response.msg_type === 'proposal') {
+            if (shouldBuy(appState.lastTick, appState.sma)) {
+                buyContract(derivWs, response.proposal.id, appState.stake, ws);
+            }
+        }
+
+        if (response.msg_type === 'buy') {
+            appState.currentContractId = response.buy.contract_id;
+            ws.send(JSON.stringify({
+                type: 'buy',
+                contract_id: appState.currentContractId
+            }));
+        }
+
+        if (response.msg_type === 'sell') {
+            const profit = parseFloat(response.sell.sold_for) - appState.stake;
+            appState.totalProfit += profit;
+            ws.send(JSON.stringify({
+                type: 'transaction',
+                profit: profit.toFixed(2),
+                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
+            }));
+            ws.send(JSON.stringify({
+                type: 'contract_finalizado',
+                message: 'Contrato finalizado'
+            }));
+        }
+    });
+
+    derivWs.on('error', (error) => {
+        handleError(ws, error.message);
+    });
+};
+
+const startTickSubscription = (derivWs, ws, symbol) => {
+    derivWs.send(JSON.stringify({
+        "ticks": symbol,
+        "subscribe": 1
+    }));
+};
+
+const requestProposal = (derivWs, stake, symbol) => {
+    const amount = parseFloat(stake);
+    if (isNaN(amount) || amount <= 0) {
+        console.error(`Invalid stake amount: ${stake}`);
+        return;
+    }
+
+    derivWs.send(JSON.stringify({
+        "proposal": 1,
+        "amount": amount.toFixed(2),
+        "basis": "stake",
+        "contract_type": "CALL",
+        "currency": "USD",
+        "duration": 5,
+        "duration_unit": "t",
+        "symbol": symbol
+    }));
+};
+
+const shouldBuy = (lastTick, sma) => {
+    return lastTick > sma;
+};
+
+const buyContract = (derivWs, proposalId, stake, ws) => {
+    const amount = parseFloat(stake);
+    if (isNaN(amount) || amount <= 0) {
+        console.error(`Invalid stake amount: ${stake}`);
+        handleError(ws, `Invalid stake amount: ${stake}`);
+        return;
+    }
+
+    derivWs.send(JSON.stringify({
+        "buy": proposalId,
+        "price": amount.toFixed(2)
+    }));
+};
+
+const sellContract = (derivWs, contractId, ws) => {
+    derivWs.send(JSON.stringify({ sell: contractId }));
+};
+
+app.get('/api/bots', (req, res) => {
+    const botDirectory = path.join(__dirname, 'bot');
+    console.log(`Listing bots in directory: ${botDirectory}`);
+    fs.readdir(botDirectory, (err, files) => {
+        if (err) {
+            console.error('Failed to list bots:', err);
+            return res.status(500).json({ error: 'Failed to list bots' });
+        }
+        const botFiles = files.filter(file => file.endsWith('.xml')).map(file => path.basename(file, '.xml'));
+        console.log('Bots found:', botFiles);
+        res.json(botFiles);
+    });
+});
 
 function initializeVariables(variables) {
-    appState.stake = parseFloat(getVariableValue(variables, 'b.8A=Z%v|?!R]8swby2J', true));
-    appState.initialStake = parseFloat(getVariableValue(variables, '[JQ:6ujo0P~5.c48sN/n', true));
-    appState.MartingaleFactor = parseFloat(getVariableValue(variables, 'Qs!p}1o9ynq+8,VB=Oq.', true));
-    appState.targetProfit = parseFloat(getVariableValue(variables, 'z(47tS:MB6xXj~Sa3R7j', true));
-    console.log("Variáveis do bot inicializadas:", appState);
+    try {
+        console.log("Initializing variables from XML...");
+
+        const idsToVariables = {
+            stake: 'b.8A=Z%v|?!R]8swby2J',
+            initialStake: '[JQ:6ujo0P~5.c48sN/n',
+            MartingaleFactor: 'Qs!p}1o9ynq+8,VB=Oq.',
+            targetProfit: 'z(47tS:MB6xXj~Sa3R7j'
+        };
+
+        for (const [key, id] of Object.entries(idsToVariables)) {
+            const value = getVariableValue(variables, id, appState[key]);
+            if (value !== undefined) {
+                appState[key] = value;
+            }
+            console.log(`Initialized ${key}: ${appState[key]}`);
+        }
+
+    } catch (error) {
+        console.error("Error initializing variables:", error.message);
+        throw new Error("Failed to initialize variables from XML");
+    }
 }
 
-function getVariableValue(variables, id, isNumeric = false) {
+function getVariableValue(variables, id, defaultValue) {
     const variable = variables.find(v => v.$.id === id);
-    if (!variable) {
-        throw new Error(`Variável com ID ${id} não encontrada no XML`);
+    if (variable && variable._) {
+        const value = parseFloat(variable._);
+        if (!isNaN(value)) {
+            return value;
+        } else {
+            console.warn(`Variable with ID ${id} has an invalid value: ${variable._}. Using default value: ${defaultValue}`);
+            return defaultValue;
+        }
+    } else {
+        console.warn(`Variable with ID ${id} not found. Using default value: ${defaultValue}`);
+        return defaultValue;
     }
-    const value = variable._;
-    console.log(`ID: ${id}, Value: ${value}`);
-    return isNumeric ? parseFloat(value) : value;
 }
 
 function handleError(ws, errorMessage) {
     console.error("Erro:", errorMessage);
-    ws.send(`Erro: ${errorMessage}`);
-}
-
-function startTrading(derivWs, ws) {
-    derivWs.send(JSON.stringify({
-        "ticks": "1HZ10V",
-        "subscribe": 1
-    }));
-}
-
-function shouldBuy(lastTick, sma) {
-    return lastTick > sma;
-}
-
-async function buyContract(derivWs, proposalId, stake, ws) {
-    derivWs.send(JSON.stringify({
-        "buy": proposalId,
-        "price": stake
-    }));
-}
-
-function shouldSell(response) {
-    return parseFloat(response.tick.quote) > 1.20000;
-}
-
-function sellContract(derivWs, contractId, ws) {
-    derivWs.send(JSON.stringify({ sell: contractId }));
-}
-
-function calculateSMA(prices, period) {
-    if (prices.length < period) return null;
-    const sum = prices.slice(-period).reduce((acc, val) => acc + val, 0);
-    return sum / period;
+    ws.send(JSON.stringify({ type: 'error', message: `Erro: ${errorMessage}` }));
 }
 
 function updateAppState(data) {
@@ -234,8 +308,10 @@ function updateAppState(data) {
         appState.smaHistory = appState.smaHistory.slice(-8);
         appState.sma = calculateSMA(appState.smaHistory, 8);
     }
+}
 
-    // ***IMPLEMENTE A LÓGICA PARA ATUALIZAR:***
-    // -  appState.lowestBalance 
-    // -  appState.lowestLoss
+function calculateSMA(prices, period) {
+    if (prices.length < period) return null;
+    const sum = prices.slice(-period).reduce((acc, val) => acc + val, 0);
+    return sum / period;
 }
