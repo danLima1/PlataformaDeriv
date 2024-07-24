@@ -38,6 +38,7 @@ function App() {
     const [selectedBot, setSelectedBot] = useState('');
     const [open, setOpen] = useState(false);
     const [botRunning, setBotRunning] = useState(false);
+    const [authenticated, setAuthenticated] = useState(false);
 
     const [chartData, setChartData] = useState({
         labels: [],
@@ -58,65 +59,81 @@ function App() {
     const maxTicks = 25; // Limite de ticks no gráfico
 
     useEffect(() => {
-        const websocket = new WebSocket('ws://localhost:3001');
-        setWs(websocket);
+        fetch('http://localhost:3001/auth/status', {
+            method: 'GET',
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.authenticated) {
+                setAuthenticated(true);
+                const websocket = new WebSocket('ws://localhost:3001');
+                setWs(websocket);
 
-        websocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'balance') {
-                    setBalance(data.balance);
-                } else if (data.type === 'transaction') {
-                    setProfit(data.profit);
-                    setBalance(data.balance);
-                } else if (data.type === 'tick') {
-                    const tickValue = data.tick;
-                    setChartData(prevChartData => {
-                        const newLabels = [...prevChartData.labels, new Date().toLocaleTimeString()];
-                        const newData = [...prevChartData.datasets[0].data, tickValue];
-                        const newColors = [...prevChartData.datasets[0].pointBackgroundColor];
+                websocket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'balance') {
+                            setBalance(data.balance);
+                        } else if (data.type === 'transaction') {
+                            setProfit(data.profit);
+                            setBalance(data.balance);
+                        } else if (data.type === 'tick') {
+                            const tickValue = data.tick;
+                            setChartData(prevChartData => {
+                                const newLabels = [...prevChartData.labels, new Date().toLocaleTimeString()];
+                                const newData = [...prevChartData.datasets[0].data, tickValue];
+                                const newColors = [...prevChartData.datasets[0].pointBackgroundColor];
 
-                        if (newData.length > 1) {
-                            const lastValue = newData[newData.length - 2];
-                            newColors.push(tickValue > lastValue ? 'green' : 'red');
+                                if (newData.length > 1) {
+                                    const lastValue = newData[newData.length - 2];
+                                    newColors.push(tickValue > lastValue ? 'green' : 'red');
+                                } else {
+                                    newColors.push('green'); // Primeira bolinha é verde por padrão
+                                }
+
+                                // Remover ticks antigos se ultrapassar o limite
+                                if (newData.length > maxTicks) {
+                                    newLabels.shift();
+                                    newData.shift();
+                                    newColors.shift();
+                                }
+
+                                return {
+                                    labels: newLabels,
+                                    datasets: [{
+                                        ...prevChartData.datasets[0],
+                                        data: newData,
+                                        pointBackgroundColor: newColors,
+                                    }],
+                                };
+                            });
+                        } else if (data.type === 'error') {
+                            setResponses(prev => [...prev, `Error: ${data.message}`]);
+                        } else if (data.type === 'status') {
+                            setResponses(prev => [...prev, data.message]);
                         } else {
-                            newColors.push('green'); // Primeira bolinha é verde por padrão
+                            setResponses(prev => [...prev, event.data]);
                         }
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e);
+                    }
+                };
 
-                        // Remover ticks antigos se ultrapassar o limite
-                        if (newData.length > maxTicks) {
-                            newLabels.shift();
-                            newData.shift();
-                            newColors.shift();
-                        }
+                fetch('http://localhost:3001/api/bots', {
+                    method: 'GET',
+                    credentials: 'include'
+                })
+                    .then(response => response.json())
+                    .then(data => setBots(data))
+                    .catch(error => console.error('Error fetching bots:', error));
 
-                        return {
-                            labels: newLabels,
-                            datasets: [{
-                                ...prevChartData.datasets[0],
-                                data: newData,
-                                pointBackgroundColor: newColors,
-                            }],
-                        };
-                    });
-                } else if (data.type === 'error') {
-                    setResponses(prev => [...prev, `Error: ${data.message}`]);
-                } else if (data.type === 'status') {
-                    setResponses(prev => [...prev, data.message]);
-                } else {
-                    setResponses(prev => [...prev, event.data]);
-                }
-            } catch (e) {
-                console.error('Error parsing WebSocket message:', e);
+                return () => websocket.close();
+            } else {
+                setAuthenticated(false);
             }
-        };
-
-        fetch('http://localhost:3001/api/bots')
-            .then(response => response.json())
-            .then(data => setBots(data))
-            .catch(error => console.error('Error fetching bots:', error));
-
-        return () => websocket.close();
+        })
+        .catch(error => console.error('Error checking authentication status:', error));
     }, []);
 
     const sendMessage = () => {
@@ -158,6 +175,31 @@ function App() {
             window.location.reload();
         }).catch(error => console.error('Error logging out:', error));
     };
+
+    if (!authenticated) {
+        return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#000' }}>
+                <AppBar position="static">
+                    <Toolbar>
+                        <Typography variant="h6">
+                            SUPER BOTZ
+                        </Typography>
+                        <Box sx={{ marginLeft: 'auto' }}>
+                            <Button color="inherit" onClick={handleLogin}>Login</Button>
+                        </Box>
+                    </Toolbar>
+                </AppBar>
+                <Container component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 64px)' }}>
+                    <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
+                        Logue-se na Deriv para acessar a aplicação.
+                    </Typography>
+                    <Button variant="contained" color="primary" onClick={handleLogin}>
+                        Login
+                    </Button>
+                </Container>
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#000' }}>
