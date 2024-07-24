@@ -146,6 +146,19 @@ function App() {
         setOpen(false);
     };
 
+    const handleLogin = () => {
+        window.location.href = 'http://localhost:3001/auth/login';
+    };
+
+    const handleLogout = () => {
+        fetch('http://localhost:3001/auth/logout', {
+            method: 'GET',
+            credentials: 'include'
+        }).then(() => {
+            window.location.reload();
+        }).catch(error => console.error('Error logging out:', error));
+    };
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#000' }}>
             <AppBar position="static">
@@ -153,12 +166,16 @@ function App() {
                     <Typography variant="h6">
                         SUPER BOTZ
                     </Typography>
+                    <Box sx={{ marginLeft: 'auto' }}>
+                        <Button color="inherit" onClick={handleLogin}>Login</Button>
+                        <Button color="inherit" onClick={handleLogout}>Logout</Button>
+                    </Box>
                 </Toolbar>
             </AppBar>
             <Container component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 48px)', padding: 0 }}>
-            <Grid container spacing={0} sx={{ flexGrow: 1, height: '100%', padding: 0 }}>
-  <Grid item xs={12} md={9} sx={{ height: '75%', display: 'flex', flexDirection: 'column' }}>
-    <Box sx={{ flexGrow: 1, backgroundColor: '#000', padding: 2 }}>
+                <Grid container spacing={0} sx={{ flexGrow: 1, height: '100%', padding: 0 }}>
+                    <Grid item xs={12} md={9} sx={{ height: '75%', display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ flexGrow: 1, backgroundColor: '#000', padding: 2 }}>
                             <Typography variant="h5" component="h2" gutterBottom sx={{ color: '#fff' }}>
                                 Gráfico de Tick
                             </Typography>
