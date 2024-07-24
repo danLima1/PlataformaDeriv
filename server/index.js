@@ -182,7 +182,7 @@ const runBotLogic = async (botName, ws, token) => {
 };
 
 const startTickStream = (ws, symbol, token) => {
-    const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+    const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=63030');
 
     derivWs.on('open', () => {
         derivWs.send(JSON.stringify({ authorize: token }));
