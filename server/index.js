@@ -4,24 +4,21 @@ const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 const cors = require('cors');
-const session = require('express-session');
-const axios = require('axios');
 require('dotenv').config();
 const xml2js = require('xml2js');
 
 const app = express();
 const PORT = 3001;
 
-const CLIENT_ID = '63030'; // Substitua pelo seu Application ID
-const REDIRECT_URI = `http://localhost:${PORT}/auth/callback`; // Deve corresponder à URL configurada no Deriv
+const API_TOKEN = process.env.API_TOKEN;
 
-app.use(cors({ credentials: true, origin: 'http://localhost:3000' })); // Alterar origin conforme necessário
+if (!API_TOKEN) {
+    throw new Error('API_TOKEN is not defined in the environment variables');
+}
+
+app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-    secret: 'your_secret_key', // Troque por um segredo seguro
-    resave: false,
-    saveUninitialized: true,
-}));
+app.use(express.json());
 
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
@@ -30,10 +27,11 @@ const server = app.listen(PORT, () => {
 const wss = new Server({ server });
 
 const initialAppState = {
-    stake: 1,
-    initialStake: 1,
+    stake: null,
+    initialStake: null,
     MartingaleFactor: 2,
-    targetProfit: 10,
+    targetProfit: null,
+    stopLoss: null,
     totalProfit: 0,
     lowestBalance: null,
     lowestLoss: null,
@@ -42,7 +40,9 @@ const initialAppState = {
     currentContractId: null,
     smaHistory: [],
     balance: null,
-    running: false
+    running: false,
+    botName: null,
+    symbol: 'R_100'
 };
 
 let appState = { ...initialAppState };
@@ -54,138 +54,68 @@ const botSymbols = {
     // Adicione mais mapeamentos de bots para símbolos conforme necessário
 };
 
-// Middleware para compartilhar sessão com WebSocket
-const sessionParser = session({
-    secret: 'your_secret_key', // Troque por um segredo seguro
-    resave: false,
-    saveUninitialized: true,
-});
+wss.on('connection', (ws) => {
+    console.log('New client connected');
 
-app.use(sessionParser);
+    ws.on('message', (message) => {
+        console.log(`Received message => ${message}`);
+        const messageStr = message.toString();
 
-// Endpoint para iniciar o processo de autenticação
-app.get('/auth/login', (req, res) => {
-    const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-    res.redirect(authUrl);
-});
-
-// Callback para lidar com o retorno da Deriv após login
-app.get('/auth/callback', async (req, res) => {
-    const { code } = req.query;
-    if (!code) {
-        return res.status(400).send('No authorization code provided.');
-    }
-
-    try {
-        const tokenResponse = await axios.post('https://oauth.deriv.com/oauth2/token', new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            redirect_uri: REDIRECT_URI,
-            code: code
-        }).toString(), {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        });
-
-        const { access_token } = tokenResponse.data;
-        req.session.access_token = access_token;
-        res.redirect('/'); // Redirecione para a página principal ou onde você quiser
-    } catch (error) {
-        console.error('Error retrieving access token:', error.message);
-        res.status(500).send('Error retrieving access token');
-    }
-});
-
-// Middleware para verificar se o usuário está autenticado
-const isAuthenticated = (req, res, next) => {
-    if (req.session.access_token) {
-        next();
-    } else {
-        res.status(401).json({ error: 'Not authenticated' });
-    }
-};
-
-// Endpoint para verificar se o usuário está autenticado
-app.get('/auth/status', (req, res) => {
-    if (req.session.access_token) {
-        res.json({ authenticated: true });
-    } else {
-        res.json({ authenticated: false });
-    }
-});
-
-// Logout endpoint
-app.get('/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            console.error('Error logging out:', err);
-            return res.status(500).send('Error logging out');
-        }
-        res.clearCookie('connect.sid');
-        res.redirect('/');
-    });
-});
-
-// Proteger as rotas que precisam de autenticação
-app.use('/api', isAuthenticated);
-
-// Modificar o WebSocket para usar a sessão
-wss.on('connection', (ws, req) => {
-    sessionParser(req, {}, () => {
-        if (!req.session.access_token) {
-            ws.close(4001, 'Not authenticated');
+        if (messageStr === 'stop') {
+            appState.running = false;
+            ws.send(JSON.stringify({ type: 'status', message: 'Bot stopped' }));
             return;
         }
 
-        console.log('New client connected');
-        startTickStream(ws, 'R_100', req.session.access_token); // Símbolo padrão ou pode ser configurável
+        if (!appState.stake || !appState.targetProfit || !appState.stopLoss) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Configure the stake, target profit, and stop loss values before starting the bot.' }));
+            return;
+        }
 
-        ws.on('message', (message) => {
-            console.log(`Received message => ${message}`);
-            const messageStr = message.toString();
+        console.log(`Stake: ${appState.stake}, Target Profit: ${appState.targetProfit}, Stop Loss: ${appState.stopLoss}`);
 
-            // Parar o bot
-            if (messageStr === 'stop') {
-                appState.running = false;
-                ws.send(JSON.stringify({ type: 'status', message: 'Bot stopped' }));
-                return;
-            }
+        appState = {
+            ...initialAppState,
+            running: true,
+            stake: appState.stake,
+            initialStake: appState.initialStake,
+            MartingaleFactor: appState.MartingaleFactor,
+            targetProfit: appState.targetProfit,
+            stopLoss: appState.stopLoss,
+            balance: appState.balance, // Preserve the current balance
+            botName: messageStr, // Set the bot name from the message
+            symbol: botSymbols[messageStr] || 'R_100' // Set the symbol based on the bot name
+        };
 
-            // Reiniciar o estado e iniciar o bot novamente
-            appState = { ...initialAppState, running: true };
-            runBotLogic(messageStr, ws, req.session.access_token);
-        });
+        runBotLogic(ws);
+    });
 
-        ws.on('close', () => {
-            console.log('Client has disconnected');
-        });
+    ws.on('close', () => {
+        console.log('Client has disconnected');
     });
 });
 
-const runBotLogic = async (botName, ws, token) => {
-    const xmlFilePath = path.join(__dirname, 'bot', `${botName}.xml`);
+const runBotLogic = async (ws) => {
+    const xmlFilePath = path.join(__dirname, 'bot', `${appState.botName}.xml`);
 
     try {
         const xml = fs.readFileSync(xmlFilePath, 'utf-8');
         const xmlData = await xml2js.parseStringPromise(xml);
 
-        initializeVariables(xmlData.xml.variables[0].variable, botName);
+        initializeVariables(xmlData.xml.variables[0].variable, appState.botName);
 
-        // Inicie a transmissão de ticks e lógica do bot
-        const symbol = botSymbols[botName] || 'R_100'; // Padrão para 'R_100' se o bot não estiver no mapeamento
-        startTickStream(ws, symbol, token);
+        startTickStream(ws, appState.symbol);
 
     } catch (err) {
         handleError(ws, err.message);
     }
 };
 
-const startTickStream = (ws, symbol, token) => {
+const startTickStream = (ws, symbol) => {
     const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
 
     derivWs.on('open', () => {
-        derivWs.send(JSON.stringify({ authorize: token }));
+        derivWs.send(JSON.stringify({ authorize: API_TOKEN }));
     });
 
     derivWs.on('message', async (data) => {
@@ -197,6 +127,7 @@ const startTickStream = (ws, symbol, token) => {
         }
 
         if (response.msg_type === 'authorize') {
+            console.log('Authorization successful');
             derivWs.send(JSON.stringify({
                 "ticks_history": symbol,
                 "end": "latest",
@@ -223,7 +154,7 @@ const startTickStream = (ws, symbol, token) => {
                 type: 'history',
                 prices: appState.smaHistory
             }));
-            startTickSubscription(derivWs, ws, symbol); // Inicie a subscrição de ticks
+            startTickSubscription(derivWs, ws, symbol);
         }
 
         if (response.msg_type === 'tick') {
@@ -233,14 +164,33 @@ const startTickStream = (ws, symbol, token) => {
                 tick: appState.lastTick
             }));
 
-            // Lógica de compra
-            if (appState.running && shouldBuy(appState.lastTick, appState.sma)) {
-                requestProposal(derivWs, appState.stake, symbol);
+            if (appState.balance <= appState.stopLoss) {
+                if (appState.running) {
+                    appState.running = false;
+                    ws.send(JSON.stringify({ type: 'status', message: 'Stop loss reached. Bot stopped.' }));
+                }
+                return;
+            }
+
+            if (appState.totalProfit >= appState.targetProfit) {
+                if (appState.running) {
+                    appState.running = false;
+                    ws.send(JSON.stringify({ type: 'status', message: 'Target profit reached. Bot stopped.' }));
+                }
+                return;
+            }
+
+            if (appState.running) {
+                const decision = await askBotForDecision(appState.lastTick, appState.sma);
+                if (decision) {
+                    requestProposal(derivWs, appState.stake, symbol);
+                }
             }
         }
 
         if (response.msg_type === 'proposal') {
-            if (appState.running && shouldBuy(appState.lastTick, appState.sma)) {
+            const decision = await askBotForDecision(appState.lastTick, appState.sma);
+            if (appState.running && decision) {
                 buyContract(derivWs, response.proposal.id, appState.stake, ws);
             }
         }
@@ -286,6 +236,8 @@ const requestProposal = (derivWs, stake, symbol) => {
         return;
     }
 
+    console.log(`Requesting proposal for amount: ${amount}, symbol: ${symbol}`);
+
     derivWs.send(JSON.stringify({
         "proposal": 1,
         "amount": amount.toFixed(2),
@@ -298,8 +250,18 @@ const requestProposal = (derivWs, stake, symbol) => {
     }));
 };
 
-const shouldBuy = (lastTick, sma) => {
-    return lastTick > sma;
+// Simulate asking the bot for a decision
+const askBotForDecision = async (lastTick, sma) => {
+    // Implement your bot's logic here to make a decision
+    // This function should return true if the bot decides to buy, and false otherwise
+    // Here, we're simulating a decision based on the last tick and SMA, replace this with your bot's logic
+    const decision = await new Promise(resolve => {
+        setTimeout(() => {
+            resolve(lastTick > sma);
+        }, 100); // Simulating delay for the bot's decision-making
+    });
+    console.log(`Bot ${appState.botName}: ${decision} (Last tick: ${lastTick}, SMA: ${sma})`);
+    return decision;
 };
 
 const buyContract = (derivWs, proposalId, stake, ws) => {
@@ -309,6 +271,8 @@ const buyContract = (derivWs, proposalId, stake, ws) => {
         handleError(ws, `Invalid stake amount: ${stake}`);
         return;
     }
+
+    console.log(`Buying contract with proposal ID: ${proposalId}, amount: ${amount}`);
 
     derivWs.send(JSON.stringify({
         "buy": proposalId,
@@ -338,19 +302,18 @@ const initializeVariables = (variables, botName) => {
     try {
         console.log("Initializing variables from XML...");
 
-        // Defina o mapeamento para cada tipo de bot
         const idMappings = {
-            'bot1': { // Exemplo de bot 1
+            'bot1': {
                 stake: 'b.8A=Z%v|?!R]8swby2J',
                 initialStake: '[JQ:6ujo0P~5.c48sN/n',
                 MartingaleFactor: 'Qs!p}1o9ynq+8,VB=Oq.',
                 targetProfit: 'z(47tS:MB6xXj~Sa3R7j'
             },
-            'bot2': { // Exemplo de bot 2
+            'bot2': {
                 stake: 'W#MDqi;8#K?,S(@3jcX}',
                 initialStake: '.#?I=EeXYD}6l!Cf.gZ6',
-                MartingaleFactor: 'S%:!W?llAvWoj1`W/LVa',
-                targetProfit: 'AwHaJ$uP6%`gBp!D-t!['
+                MartingaleFactor: 'S%:!W?llAvWoj1W/LVa',
+                targetProfit: 'AwHaJ$uP6%gBp!D-t!['
             },
             // Adicione mais mapeamentos conforme necessário
         };
@@ -419,3 +382,24 @@ const handleError = (ws, message) => {
     console.error(message);
     ws.send(JSON.stringify({ type: 'error', message }));
 };
+
+app.post('/api/config/stake', (req, res) => {
+    const { stake } = req.body;
+    appState.stake = parseFloat(stake);
+    console.log(`Stake set to: ${appState.stake}`);
+    res.json({ message: 'Stake updated', stake: appState.stake });
+});
+
+app.post('/api/config/stopLoss', (req, res) => {
+    const { stopLoss } = req.body;
+    appState.stopLoss = parseFloat(stopLoss);
+    console.log(`Stop Loss set to: ${appState.stopLoss}`);
+    res.json({ message: 'Stop loss updated', stopLoss: appState.stopLoss });
+});
+
+app.post('/api/config/targetProfit', (req, res) => {
+    const { targetProfit } = req.body;
+    appState.targetProfit = parseFloat(targetProfit);
+    console.log(`Target Profit set to: ${appState.targetProfit}`);
+    res.json({ message: 'Target profit updated', targetProfit: appState.targetProfit });
+});

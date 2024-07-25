@@ -1,0 +1,45 @@
+.register-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--color2);
+    background-image: var(--lg_bg), var(--bg-img);
+    background-repeat: no-repeat;
+    background-size: auto 60%, cover;
+    background-attachment: fixed;
+    background-position: center;
+  }
+  
+  .register-card {
+    width: 100%;
+    max-width: 400px;
+    background-color: #222;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  }
+  
+  .btn-purple {
+    color: var(--color1);
+    background-color: var(--color4);
+    border-color: #91ff00aa;
+  }
+  
+  .btn-purple:hover {
+    color: var(--color1);
+    background-color: var(--color2);
+    border-color: #ffffffaa;
+  }
+  
+  .btn-purple:focus,
+  .btn-purple.focus {
+    background-color: var(--color2);
+    color: var(--color1);
+    box-shadow: 0 0 0 .2rem #ffffffaa;
+  }
+  
+  .underlineHover:hover {
+    text-decoration: underline;
+  }
+  

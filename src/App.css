@@ -6,7 +6,11 @@ body {
     background-color: #000; /* Fundo preto */
     color: #fff; /* Texto branco */
 }
-
+.css-18palfr-MuiContainer-root {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
 code {
     font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
@@ -27,3 +31,325 @@ code {
 .MuiTypography-body1 {
     color: #fff !important; /* Texto branco para corpo */
 }
+.barspinner {
+    background-color: #000;
+    position: fixed;
+    margin-left: -5rem;
+    top: 0px !important;
+    left: 0px !important;
+    right: 0px;
+    bottom: 0px;
+    z-index: 99 !important;
+    /*cor de fundo loading... pelicula*/
+    opacity: 0.6;
+}
+
+.barspinner .loader {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    margin-left: -5rem;
+    z-index: 9999;
+    color:  --color4;
+    width: 100px;
+    height: 100px;
+}
+
+#toolbarContainer {
+    display: none !important;
+}
+
+:root {
+    --color1: #ffffff;
+    --color2: #000000;
+    --color3: #6c8000;
+    --color4: #529703;
+    --color5: #4c005c;
+    --color6: #00000000;
+    --bg-img: url('https://images.unsplash.com/photo-1603346133929-24265debae88?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MXx8Z3JleSUyMGdyYWRpZW50fGVufDB8fDB8fA%3D%3D&w=1000&q=80');
+    --lg_bg: url('');
+    --logo: url('https://superbots.com.br/image/logo1710306694.svg');
+    --usu-img: url();
+}
+
+html {
+    background-color: var(--color2);
+    background-image: var(--lg_bg), var(--bg-img);
+    background-repeat: no-repeat;
+    background-size: auto 60%, cover;
+    background-attachment: fixed;
+    background-position: center;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body {
+    background: transparent;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.bgvideo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+width: 100%;
+z-index: -1;
+
+object-fit: cover;
+}
+
+
+
+* {
+/* Define a cor da thumb e do track */
+scrollbar-color: #0d6efd #0008;
+
+/* Define a largura e altura da thumb */
+scrollbar-width: thin;
+
+}
+
+::-webkit-scrollbar {
+width: 5px;
+height: 5px;
+}
+
+::-webkit-scrollbar-track {
+background-color: #0008;
+border: none;
+}
+
+::-webkit-scrollbar-thumb {
+background-color: #0000;
+border: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+background-color: #acf;
+border: none;
+}
+
+/*.border-success {*/
+/*    border-color: #0f0 !important;*/
+/*}*/
+
+.btn-purple {
+color: var(--color1);
+background-color: var(--color4);
+border-color: #91ff00aa;
+}
+
+.btn-purple:hover {
+color: var(--color1);
+background-color: var(--color2);
+border-color: #ffffffaa;
+}
+
+.btn-purple:focus,
+.btn-purple.focus {
+background-color: var(--color2);
+color: var(--color1);
+box-shadow: 0 0 0 .2rem #ffffffaa;
+}
+
+.btn-outline-purple {
+color: var(--color4);
+background-color: transparent;
+background-image: none;
+border-color: var(--color4)
+}
+
+.btn-outline-purple:hover {
+color: var(--color1);
+background-color: var(--color4);
+border-color: #f17d0faa;
+}
+
+.toolbar {
+min-width: 280px;
+}
+
+.overflow-y {
+overflow-y: auto;
+}
+
+.overflow-x {
+overflow-x: auto;
+}
+
+@supports (overflow: overlay) {
+.overflow-y {
+    overflow-y: overlay;
+}
+
+.overflow-x {
+    overflow-x: overlay;
+}
+}
+
+.text-shadow {
+text-shadow: 0 0 5px #000, 0 0 5px #000, 0 0 5px #000, 0 0 5px #000, 0 0 5px #000;
+}
+
+.switcher {
+font-family: Arial;
+font-size: 12pt;
+text-align: left;
+cursor: pointer;
+overflow: hidden;
+width: 173px;
+line-height: 17px;
+}
+
+.switcher a {
+text-decoration: none;
+display: block;
+font-size: 12pt;
+-webkit-box-sizing: content-box;
+-moz-box-sizing: content-box;
+box-sizing: content-box;
+}
+
+.switcher a img {
+vertical-align: middle;
+display: inline;
+border: 0;
+padding: 0;
+margin: 0;
+opacity: 0.8;
+}
+
+.switcher a:hover img {
+opacity: 1;
+}
+
+.switcher .selected {
+background: #fff linear-gradient(180deg, #efefef 0%, #fff 70%);
+position: relative;
+z-index: 9999;
+}
+
+.switcher .selected a {
+border: 1px solid #ccc;
+color: #666;
+padding: 3px 5px;
+width: 161px;
+}
+
+.switcher .selected a:after {
+height: 24px;
+display: inline-block;
+position: absolute;
+right: 10px;
+width: 15px;
+background-position: 50%;
+background-size: 11px;
+background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 285 285'><path d='M282 76.5l-14.2-14.3a9 9 0 0 0-13.1 0L142.5 174.4 30.3 62.2a9 9 0 0 0-13.2 0L3 76.5a9 9 0 0 0 0 13.1l133 133a9 9 0 0 0 13.1 0l133-133a9 9 0 0 0 0-13z' style='fill:%23666'/></svg>");
+background-repeat: no-repeat;
+content: "" !important;
+transition: all .2s;
+}
+
+.switcher .selected a.open:after {
+-webkit-transform: rotate(-180deg);
+transform: rotate(-180deg);
+}
+
+.switcher .selected a:hover {
+background: #fff
+}
+
+.switcher .option {
+position: relative;
+z-index: 9998;
+border-left: 1px solid #ccc;
+border-right: 1px solid #ccc;
+border-bottom: 1px solid #ccc;
+background-color: #eee;
+display: none;
+width: 171px;
+max-height: 198px;
+-webkit-box-sizing: content-box;
+-moz-box-sizing: content-box;
+box-sizing: content-box;
+overflow-y: auto;
+overflow-x: hidden;
+}
+
+.switcher .option a {
+color: #000;
+padding: 3px 5px;
+}
+
+.switcher .option a:hover {
+background: #fff;
+}
+
+.switcher .option a.selected {
+background: #fff;
+}
+
+#selected_lang_name {
+float: none;
+}
+
+.l_name {
+float: none !important;
+margin: 0;
+}
+
+.switcher .option::-webkit-scrollbar-track {
+-webkit-box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+border-radius: 5px;
+background-color: #f5f5f5;
+}
+
+.switcher .option::-webkit-scrollbar {
+width: 5px;
+}
+
+.switcher .option::-webkit-scrollbar-thumb {
+border-radius: 5px;
+-webkit-box-shadow: inset 0 0 3px rgba(0, 0, 0, .3);
+background-color: #888;
+}
+
+.navbar .megamenu {
+padding: 1rem;
+}
+
+/* ============ desktop view ============ */
+@media all and (min-width: 992px) {
+
+.navbar .has-megamenu {
+    position: static !important;
+}
+
+.navbar .megamenu {
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin-top: 0;
+}
+
+}
+
+/* ============ desktop view .end// ============ */
+
+
+/* ============ mobile view ============ */
+@media(max-width: 991px) {
+
+.navbar.fixed-top .navbar-collapse,
+.navbar.sticky-top .navbar-collapse {
+    overflow-y: auto;
+    max-height: 90vh;
+    margin-top: 10px;
+}
+}
+
+/* ============ mobile view .end// ============ */
