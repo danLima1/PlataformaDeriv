@@ -111,8 +111,13 @@ const runBotLogic = async (ws) => {
     }
 };
 
+<<<<<<< HEAD
 const startTickStream = (ws, symbol) => {
     const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+=======
+const startTickStream = (ws, symbol, token) => {
+    const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=63030');
+>>>>>>> bc360d383c73f5cedeada0cc97e3148e3d8a2c20
 
     derivWs.on('open', () => {
         derivWs.send(JSON.stringify({ authorize: API_TOKEN }));
