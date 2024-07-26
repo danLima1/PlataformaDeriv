@@ -44,7 +44,9 @@ const initialAppState = {
     initialBalance: null,
     running: false,
     botName: null,
-    symbol: 'R_100'
+    symbol: 'R_100',
+    buying: false,
+    buyQueue: [], // Fila de compras
 };
 
 let appState = { ...initialAppState };
@@ -53,7 +55,6 @@ const botSymbols = {
     'bot1': 'R_100',
     'bot2': 'R_50',
     'bot3': 'R_75',
-    // Adicione mais mapeamentos de bots para símbolos conforme necessário
 };
 
 wss.on('connection', (ws) => {
@@ -85,9 +86,10 @@ wss.on('connection', (ws) => {
             targetProfit: appState.targetProfit,
             stopLoss: appState.stopLoss,
             balance: appState.balance,
-            initialBalance: appState.balance, // Salva o saldo inicial
+            initialBalance: appState.balance,
             botName: messageStr,
-            symbol: botSymbols[messageStr] || 'R_100'
+            symbol: botSymbols[messageStr] || 'R_100',
+            buyQueue: [],
         };
 
         runBotLogic(ws);
@@ -153,7 +155,7 @@ const startTickStream = (ws, symbol) => {
                 appState.initialBalance = appState.balance;
             }
 
-            const balanceChange = appState.balance - appState.initialBalance; // Calcula o lucro/prejuízo acumulado
+            const balanceChange = appState.balance - appState.initialBalance;
             const balanceMessage = balanceChange >= 0 
                 ? `Lucro: $${balanceChange.toFixed(2)}`
                 : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
@@ -199,23 +201,24 @@ const startTickStream = (ws, symbol) => {
                 return;
             }
 
-            if (appState.running) {
+            if (appState.running && !appState.buying) {
                 const decision = await askBotForDecision(appState.lastTick, appState.sma);
                 if (decision) {
-                    requestProposal(derivWs, appState.stake, symbol);
+                    appState.buyQueue.push({ stake: appState.stake, symbol });
+                    processBuyQueue(derivWs, ws);
                 }
             }
         }
 
         if (response.msg_type === 'proposal') {
             const decision = await askBotForDecision(appState.lastTick, appState.sma);
-            if (appState.running && decision) {
+            if (appState.running && decision && appState.buying) {
                 buyContract(derivWs, response.proposal.id, appState.stake, ws);
             }
         }
 
         if (response.msg_type === 'buy') {
-            appState.previousBalance = appState.balance; // Salvar saldo anterior antes de comprar
+            appState.previousBalance = appState.balance;
             appState.currentContractId = response.buy.contract_id;
             ws.send(JSON.stringify({
                 type: 'buy',
@@ -233,7 +236,6 @@ const startTickStream = (ws, symbol) => {
                 ? `Lucro: $${balanceChange.toFixed(2)}`
                 : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
 
-            // Log dos dados enviados ao frontend
             console.log(`Enviando mensagem ao frontend: ${balanceMessage}`);
             console.log(`Saldo anterior: ${appState.previousBalance}`);
             console.log(`Saldo atual: ${appState.balance}`);
@@ -263,6 +265,22 @@ const startTickSubscription = (derivWs, ws, symbol) => {
     }));
 };
 
+const processBuyQueue = (derivWs, ws) => {
+    if (appState.buying || appState.buyQueue.length === 0) {
+        return;
+    }
+
+    appState.buying = true;
+    const { stake, symbol } = appState.buyQueue.shift();
+    requestProposal(derivWs, stake, symbol);
+
+    // Adiciona um intervalo de tempo garantido entre as compras
+    setTimeout(() => {
+        appState.buying = false;
+        processBuyQueue(derivWs, ws);
+    }, 1000); // 1 segundo de intervalo entre as compras
+};
+
 const requestProposal = (derivWs, stake, symbol) => {
     const amount = parseFloat(stake);
     if (isNaN(amount) || amount <= 0) {
@@ -284,7 +302,6 @@ const requestProposal = (derivWs, stake, symbol) => {
     }));
 };
 
-// Simulate asking the bot for a decision
 const askBotForDecision = async (lastTick, sma) => {
     const decision = await new Promise(resolve => {
         setTimeout(() => {
@@ -346,7 +363,6 @@ const initializeVariables = (variables, botName) => {
                 MartingaleFactor: 'S%:!W?llAvWoj1W/LVa',
                 targetProfit: 'AwHaJ$uP6%gBp!D-t!['
             },
-            // Adicione mais mapeamentos conforme necessário
         };
 
         const mapping = idMappings[botName];

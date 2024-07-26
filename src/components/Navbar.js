@@ -14,14 +14,13 @@ function Navbar() {
 
   return (
     <nav className="navbar navbar-expand-lg bg-body-tertiary sticky-top border-bottom border-light">
-      <div className="container">
-        <a className="navbar-brand" href="/"><img src="https://superbots.com.br/image/logoh1715917008.png" height="32" alt="Logo" /></a>
+      <div className="full-width-container">
         <button className="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar" aria-label="Toggle navigation">
           <span className="navbar-toggler-icon"></span>
         </button>
         <div className="offcanvas offcanvas-end" tabIndex="-1" id="offcanvasNavbar" aria-labelledby="offcanvasNavbarLabel">
           <div className="offcanvas-header">
-            <a className="navbar-brand" href="/"><img src="https://superbots.com.br/image/logoh1715917008.png" height="32" alt="Logo" /></a>
+            <a className="navbar-brand" href="/"><img src="" height="32" alt="Logo" /></a>
             <button type="button" className="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
           </div>
           <div className="offcanvas-body">

@@ -18,8 +18,9 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import RobotIcon from '@mui/icons-material/SmartToy';
-import SettingsIcon from '@mui/icons-material/Settings';
 import 'chart.js/auto';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons';
 import { Line } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import '../App.css';
@@ -27,7 +28,7 @@ import '../App.css';
 function Dashboard() {
   const [ws, setWs] = useState(null);
   const [responses, setResponses] = useState([]);
-  const [balance, setBalance] = useState('10397.02');
+  const [balance, setBalance] = useState('0.00');
   const [profit, setProfit] = useState({
     value: '0.00',
     type: 'profit',
@@ -37,10 +38,9 @@ function Dashboard() {
   const [open, setOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
-  const [stake, setStake] = useState('');
-  const [stopLoss, setStopLoss] = useState('');
-  const [targetProfit, setTargetProfit] = useState('');
-
+  const [stake, setStake] = useState('0.35');
+  const [stopLoss, setStopLoss] = useState('200');
+  const [targetProfit, setTargetProfit] = useState('3');
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [{
@@ -213,7 +213,7 @@ function Dashboard() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'row', height: '100vh', backgroundColor: '#0003' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'row', height: '100vh', backgroundColor: '#000' }}>
       <Box sx={{ flexGrow: 1, width: '75%', padding: 2 }}>
         <Typography variant="h5" component="h2" gutterBottom sx={{ color: '#fff' }}>
           Gráfico de Tick
@@ -268,169 +268,319 @@ function Dashboard() {
           />
         </Box>
       </Box>
-      <Box sx={{ width: '25%', backgroundColor: '#222', padding: 2, borderRadius: 2, color: '#fff', overflowY: 'auto' }}>
-  <Typography variant="h6" sx={{ display: 'flex', justifyContent: 'space-between' }}>
-    <span>Conta Virtual</span>
-    <span>Lucro/Prejuízo</span>
-  </Typography>
-  <Typography 
-    variant="h6" 
-    sx={{ 
-      display: 'flex', 
-      justifyContent: 'space-between'
-    }}
-  >
-    <span>${balance} USD</span>
-    <span style={{ color: profit.type === 'profit' ? '#0f0' : '#f00' }}>
-      ${profit.value}
-    </span>
-  </Typography>
-  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, color: '#0f0' }}>
-    <span>Operações</span>
-    <span>0 0 0</span>
-  </Box>
+      <Box sx={{ width: '25%', padding: 2 }}>
+        <style>
+          {`
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #000;
+                color: #fff;
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                background-color: #1a1a1a;
+                border-radius: 5px;
+                overflow: hidden;
+                border: 1px solid #333;
+                padding: 20px;
+                box-sizing: border-box;
+                margin-bottom: 20px;
+            }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                background-color: #292929;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+            .header div {
+                display: flex;
+                flex-direction: column;
+            }
+            .header div span:first-child {
+                font-size: 12px;
+                color: #bbb;
+            }
+            .header div span:last-child {
+                font-size: 18px;
+                color: #fff;
+            }
+            .operations {
+                background-color: #003;
+                color: #00bfff;
+                padding: 10px;
+                display: flex;
+                justify-content: space-between;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+            .footer {
+                background-color: #212529;
+                padding: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+            .footer .icons {
+                display: flex;
+                gap: 15px;
+            }
+            .footer .icons i {
+                font-size: 16px;
+                cursor: pointer;
+            }
+            .footer span {
+                font-size: 16px;
+            }
+            .footer button {
+                background-color: #000;
+                border: none;
+                color: #fff;
+                padding: 5px 10px;
+                border-radius: 3px;
+                cursor: pointer;
+            }
+            .audio-player {
+              display: flex;
+              align-items: center;
+              background-color: #30343F;
+              border-radius: 8px;
+              padding: 10px;
+              width: 100%;
+              font-family: Arial, sans-serif;
+              margin-top: 20px;
+            }
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', mt: 2 }}>
-          <Button variant="contained" color="primary" onClick={handleOpen} sx={{ mb: 2 }}>
-            <RobotIcon />
-            Selecionar Bot
-          </Button>
+            .play-button {
+              width: 20px;
+              height: 20px;
+              background-color: #1AB167;
+              border: none;
+              border-radius: 3px;
+              cursor: pointer;
+              margin-right: 10px;
+              position: relative;
+            }
 
+            .play-button:before {
+              content: "";
+              position: absolute;
+              left: 7px;
+              top: 4px;
+              border-left: 6px solid white;
+              border-top: 6px solid transparent;
+              border-bottom: 6px solid transparent;
+            }
+
+            .info {
+              flex-grow: 1;
+            }
+
+            .title {
+              color: #FFFFFF;
+              font-size: 14px;
+              font-weight: bold;
+            }
+
+            .artist {
+              color: #6F6F6F;
+              font-size: 12px;
+            }
+
+            .icon {
+              width: 40px;
+              height: 40px;
+              border-radius: 10px;
+              background-color: #FFC726;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              margin-right: 10px;
+            }
+
+            .icon img {
+              width: 24px;
+              height: 24px;
+            }
+          `}
+        </style>
+        <div className="container">
+          <div className="header">
+            <div>
+              <span>Conta Virtual</span>
+              <span>${balance} USD</span>
+            </div>
+            <div>
+              <span>Lucro/Prejuízo</span>
+              <span style={{ color: profit.type === 'profit' ? '#0f0' : '#f00' }}>
+                ${profit.value}
+              </span>
+            </div>
+          </div>
+          <div className="operations">
+            <span>Operações</span>
+            <span>0 0 0</span>
+          </div>
+          <div className="footer">
+            <div className="icons">
+              <i className="fa-solid fa-robot" onClick={handleOpen}></i>
+              {selectedBot && (
+                <i className="fa-solid fa-gear" onClick={handleOpenConfig}></i>
+              )}
+            </div>
+         
+          </div>
           {selectedBot && (
-            <IconButton onClick={handleOpenConfig} sx={{ ml: 2 }}>
-              <SettingsIcon style={{ color: '#fff' }} />
+            <div className="audio-player">
+              <div className="icon">
+                <img src="https://icones.pro/wp-content/uploads/2022/10/icone-robot-orange.png" alt="Robot Icon" />
+              </div>
+              <div className="info">
+                <div className="title">{selectedBot}</div>
+             
+              </div>
+              <Button onClick={botRunning ? stopBot : sendMessage} variant="contained" color="primary">
+            
+              <FontAwesomeIcon icon={botRunning ? faStop : faPlay} />
+</Button>
+            </div>
+          )}
+        </div>
+
+        <Dialog
+  open={open}
+  onClose={handleClose}
+  fullWidth
+  sx={{
+    '& .MuiDialog-paper': {
+      width: '75%',
+      maxWidth: 'none', // Remove qualquer limitação de largura máxima
+      backgroundColor: '#212529',
+    },
+  }}
+>
+  <DialogTitle sx={{ color: '#fff' }}>
+    Bots Disponíveis
+    <IconButton
+      aria-label="close"
+      onClick={handleClose}
+      sx={{
+        position: 'absolute',
+        right: 8,
+        top: 8,
+        color: (theme) => theme.palette.grey[500],
+      }}
+    >
+      <CloseIcon sx={{ color: '#fff' }} />
+    </IconButton>
+  </DialogTitle>
+  <DialogContent dividers sx={{ color: '#fff' }}>
+    <Grid container spacing={2}>
+      {bots.map((bot, index) => (
+        <Grid item xs={12} sm={6} key={index}>
+          <Paper
+            onClick={() => handleBotClick(bot)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: 2,
+              cursor: 'pointer',
+              backgroundColor: 'rgba(52, 58, 64, 0)', // Cor com transparência
+              '&:hover': {
+                backgroundColor: 'rgba(73, 80, 87, 0.7)', // Cor com transparência no hover
+              },
+            }}
+          >
+            <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
+            <Typography variant="body1" component="div" sx={{ flexGrow: 1 }}>
+              {bot}
+            </Typography>
+            <ArrowForwardIosIcon sx={{ color: '#fff' }} />
+          </Paper>
+        </Grid>
+      ))}
+    </Grid>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={handleClose} color="primary">
+      Fechar
+    </Button>
+  </DialogActions>
+</Dialog>
+
+        <Dialog open={configOpen} onClose={handleCloseConfig} fullWidth maxWidth="sm">
+          <DialogTitle>
+            Configurações do Bot
+            <IconButton
+              aria-label="close"
+              onClick={handleCloseConfig}
+              sx={{
+                position: 'absolute',
+                right: 8,
+                top: 8,
+                color: (theme) => theme.palette.grey[500],
+              }}
+            >
+              <CloseIcon />
             </IconButton>
-          )}
+          </DialogTitle>
+          <DialogContent>
+            <TextField
+              label="Stake"
+              variant="outlined"
+              fullWidth
+              value={stake}
+              onChange={(e) => setStake(e.target.value)}
+              onBlur={updateStake}
+              margin="normal"
+            />
+            <TextField
+              label="Stop Loss"
+              variant="outlined"
+              fullWidth
+              value={stopLoss}
+              onChange={(e) => setStopLoss(e.target.value)}
+              onBlur={updateStopLoss}
+              margin="normal"
+            />
+            <TextField
+              label="Target Profit"
+              variant="outlined"
+              fullWidth
+              value={targetProfit}
+              onChange={(e) => setTargetProfit(e.target.value)}
+              onBlur={updateTargetProfit}
+              margin="normal"
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseConfig} color="primary">
+              Fechar
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-          <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
-            <DialogTitle>
-              Bots Disponíveis
-              <IconButton
-                aria-label="close"
-                onClick={handleClose}
-                sx={{
-                  position: 'absolute',
-                  right: 8,
-                  top: 8,
-                  color: (theme) => theme.palette.grey[500],
-                }}
-              >
-                <CloseIcon />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent dividers>
-              <Grid container spacing={2}>
-                {bots.map((bot, index) => (
-                  <Grid item xs={12} sm={6} key={index}>
-                    <Paper
-                      onClick={() => handleBotClick(bot)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: 2,
-                        cursor: 'pointer',
-                        backgroundColor: '#343a40',
-                        '&:hover': {
-                          backgroundColor: '#343a40',
-                        },
-                      }}
-                    >
-                      <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
-                      <Typography variant="body1" component="div" sx={{ flexGrow: 1 }}>
-                        {bot}
-                      </Typography>
-                      <ArrowForwardIosIcon />
-                    </Paper>
-                  </Grid>
+        <Grid container spacing={0} mt={2}>
+          <Grid item xs={12}>
+            <Paper sx={{ padding: 2, backgroundColor: '#222', color: '#fff' }}>
+              <Typography variant="h6">
+                Respostas:
+              </Typography>
+              <List>
+                {responses.map((response, index) => (
+                  <ListItem key={index} divider>
+                    <ListItemText primary={response} />
+                  </ListItem>
                 ))}
-              </Grid>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleClose} color="primary">
-                Fechar
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          <Dialog open={configOpen} onClose={handleCloseConfig} fullWidth maxWidth="sm">
-            <DialogTitle>
-              Configurações do Bot
-              <IconButton
-                aria-label="close"
-                onClick={handleCloseConfig}
-                sx={{
-                  position: 'absolute',
-                  right: 8,
-                  top: 8,
-                  color: (theme) => theme.palette.grey[500],
-                }}
-              >
-                <CloseIcon />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent>
-              <TextField
-                label="Stake"
-                variant="outlined"
-                fullWidth
-                value={stake}
-                onChange={(e) => setStake(e.target.value)}
-                onBlur={updateStake}
-                margin="normal"
-              />
-              <TextField
-                label="Stop Loss"
-                variant="outlined"
-                fullWidth
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                onBlur={updateStopLoss}
-                margin="normal"
-              />
-              <TextField
-                label="Target Profit"
-                variant="outlined"
-                fullWidth
-                value={targetProfit}
-                onChange={(e) => setTargetProfit(e.target.value)}
-                onBlur={updateTargetProfit}
-                margin="normal"
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseConfig} color="primary">
-                Fechar
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          <Grid container spacing={0} mt={2}>
-            <Grid item xs={12}>
-              <Paper sx={{ padding: 2, backgroundColor: '#222', color: '#fff' }}>
-                <Typography variant="h6">
-                  Respostas:
-                </Typography>
-                <List>
-                  {responses.map((response, index) => (
-                    <ListItem key={index} divider>
-                      <ListItemText primary={response} />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Grid>
+              </List>
+            </Paper>
           </Grid>
-
-          {botRunning ? (
-            <Button variant="contained" color="secondary" onClick={stopBot} fullWidth>
-              Parar Bot
-            </Button>
-          ) : (
-            <Button variant="contained" color="primary" onClick={sendMessage} fullWidth disabled={!selectedBot}>
-              Iniciar Bot
-            </Button>
-          )}
-        </Box>
+        </Grid>
       </Box>
     </Box>
   );
