@@ -40,6 +40,8 @@ const initialAppState = {
     currentContractId: null,
     smaHistory: [],
     balance: null,
+    previousBalance: null,
+    initialBalance: null,
     running: false,
     botName: null,
     symbol: 'R_100'
@@ -82,9 +84,10 @@ wss.on('connection', (ws) => {
             MartingaleFactor: appState.MartingaleFactor,
             targetProfit: appState.targetProfit,
             stopLoss: appState.stopLoss,
-            balance: appState.balance, // Preserve the current balance
-            botName: messageStr, // Set the bot name from the message
-            symbol: botSymbols[messageStr] || 'R_100' // Set the symbol based on the bot name
+            balance: appState.balance,
+            initialBalance: appState.balance, // Salva o saldo inicial
+            botName: messageStr,
+            symbol: botSymbols[messageStr] || 'R_100'
         };
 
         runBotLogic(ws);
@@ -141,13 +144,29 @@ const startTickStream = (ws, symbol) => {
         }
 
         if (response.msg_type === 'balance') {
+            appState.previousBalance = appState.balance;
             appState.balance = response.balance.balance;
+            console.log(`Saldo anterior: ${appState.previousBalance}`);
+            console.log(`Saldo atual: ${appState.balance}`);
+            
+            if (appState.initialBalance === null) {
+                appState.initialBalance = appState.balance;
+            }
+
+            const balanceChange = appState.balance - appState.initialBalance; // Calcula o lucro/prejuízo acumulado
+            const balanceMessage = balanceChange >= 0 
+                ? `Lucro: $${balanceChange.toFixed(2)}`
+                : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
+            
+            const profitType = balanceChange >= 0 ? 'profit' : 'loss';
+
             ws.send(JSON.stringify({
                 type: 'balance',
-                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
+                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
+                balanceChange: balanceChange.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
+                profitType
             }));
         }
-
         if (response.msg_type === 'history') {
             updateAppState(response);
             ws.send(JSON.stringify({
@@ -196,6 +215,7 @@ const startTickStream = (ws, symbol) => {
         }
 
         if (response.msg_type === 'buy') {
+            appState.previousBalance = appState.balance; // Salvar saldo anterior antes de comprar
             appState.currentContractId = response.buy.contract_id;
             ws.send(JSON.stringify({
                 type: 'buy',
@@ -204,15 +224,29 @@ const startTickStream = (ws, symbol) => {
         }
 
         if (response.msg_type === 'sell') {
-            const profit = parseFloat(response.sell.sold_for) - appState.stake;
+            const soldFor = parseFloat(response.sell.sold_for);
+            const profit = soldFor - appState.stake;
             appState.totalProfit += profit;
 
-            let message = `Contrato finalizado com ${profit >= 0 ? 'lucro' : 'prejuízo'} de $${profit.toFixed(2)}`;
+            const balanceChange = appState.balance - appState.previousBalance;
+            const balanceMessage = balanceChange >= 0 
+                ? `Lucro: $${balanceChange.toFixed(2)}`
+                : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
+
+            // Log dos dados enviados ao frontend
+            console.log(`Enviando mensagem ao frontend: ${balanceMessage}`);
+            console.log(`Saldo anterior: ${appState.previousBalance}`);
+            console.log(`Saldo atual: ${appState.balance}`);
+            console.log(`Diferença de saldo: ${balanceChange.toFixed(2)}`);
+            console.log(`Tipo de lucro/prejuízo: ${balanceChange >= 0 ? 'profit' : 'loss'}`);
+
             ws.send(JSON.stringify({
                 type: 'contract_finalizado',
-                message: message,
-                profit: profit.toFixed(2),
-                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')
+                message: balanceMessage,
+                profit: balanceChange.toFixed(2),
+                profitType: balanceChange >= 0 ? 'profit' : 'loss',
+                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
+                balanceChange: balanceMessage
             }));
         }
     });
@@ -252,13 +286,10 @@ const requestProposal = (derivWs, stake, symbol) => {
 
 // Simulate asking the bot for a decision
 const askBotForDecision = async (lastTick, sma) => {
-    // Implement your bot's logic here to make a decision
-    // This function should return true if the bot decides to buy, and false otherwise
-    // Here, we're simulating a decision based on the last tick and SMA, replace this with your bot's logic
     const decision = await new Promise(resolve => {
         setTimeout(() => {
             resolve(lastTick > sma);
-        }, 100); // Simulating delay for the bot's decision-making
+        }, 100); 
     });
     console.log(`Bot ${appState.botName}: ${decision} (Last tick: ${lastTick}, SMA: ${sma})`);
     return decision;
