@@ -77,7 +77,7 @@ function Dashboard() {
             } else if (data.type === 'contract_finalizado') {
                 setProfit({
                     value: data.profit,
-                    type: data.profitType, // Define o tipo de profit (profit ou loss)
+                    type: data.profitType,
                 });
                 setBalance(data.balance);
             } else if (data.type === 'tick') {
@@ -127,9 +127,7 @@ function Dashboard() {
         .catch(error => console.error('Error fetching bots:', error));
 
     return () => websocket.close();
-}, []);
-
-
+  }, []);
 
   const sendMessage = () => {
     if (ws && selectedBot) {
@@ -271,29 +269,31 @@ function Dashboard() {
         </Box>
       </Box>
       <Box sx={{ width: '25%', backgroundColor: '#222', padding: 2, borderRadius: 2, color: '#fff', overflowY: 'auto' }}>
-    <Typography variant="h6" sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>Conta Virtual</span>
-        <span>Lucro/Prejuízo</span>
-    </Typography>
-    <Typography 
-        variant="h6" 
-        sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            color: profit.type === 'profit' ? '#0f0' : 'red' 
-        }}
-    >
-        <span>${balance} USD</span>
-        <span>${profit.value}</span>
-    </Typography>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, color: '#0f0' }}>
-        <span>Operações</span>
-        <span>0 0 0</span>
-    </Box>
+  <Typography variant="h6" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+    <span>Conta Virtual</span>
+    <span>Lucro/Prejuízo</span>
+  </Typography>
+  <Typography 
+    variant="h6" 
+    sx={{ 
+      display: 'flex', 
+      justifyContent: 'space-between'
+    }}
+  >
+    <span>${balance} USD</span>
+    <span style={{ color: profit.type === 'profit' ? '#0f0' : '#f00' }}>
+      ${profit.value}
+    </span>
+  </Typography>
+  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, color: '#0f0' }}>
+    <span>Operações</span>
+    <span>0 0 0</span>
+  </Box>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', mt: 2 }}>
           <Button variant="contained" color="primary" onClick={handleOpen} sx={{ mb: 2 }}>
             <RobotIcon />
+            Selecionar Bot
           </Button>
 
           {selectedBot && (
