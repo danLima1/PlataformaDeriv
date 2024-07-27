@@ -126,6 +126,15 @@ function Dashboard() {
         .then(data => setBots(data))
         .catch(error => console.error('Error fetching bots:', error));
 
+    // Send initial config values to API when component mounts
+    const sendInitialConfig = () => {
+      updateStake();
+      updateStopLoss();
+      updateTargetProfit();
+    };
+
+    sendInitialConfig();
+
     return () => websocket.close();
   }, []);
 

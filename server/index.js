@@ -27,11 +27,12 @@ const server = app.listen(PORT, () => {
 const wss = new Server({ server });
 
 const initialAppState = {
-    stake: null,
+    stake: 1,
     initialStake: null,
     MartingaleFactor: 2,
     targetProfit: null,
     stopLoss: null,
+    payout: 0,
     totalProfit: 0,
     lowestBalance: null,
     lowestLoss: null,
@@ -46,7 +47,8 @@ const initialAppState = {
     botName: null,
     symbol: 'R_100',
     buying: false,
-    buyQueue: [], // Fila de compras
+    buyQueue: [],
+    NextTradeCondition: 'Even',
 };
 
 let appState = { ...initialAppState };
@@ -70,7 +72,13 @@ wss.on('connection', (ws) => {
             return;
         }
 
-        if (!appState.stake || !appState.targetProfit || !appState.stopLoss) {
+        // Verificação de stake antes de iniciar o bot.
+        if (!appState.stake || isNaN(appState.stake)) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Please set a valid stake value.' }));
+            return;
+        } 
+
+        if (!appState.targetProfit || !appState.stopLoss) {
             ws.send(JSON.stringify({ type: 'error', message: 'Configure the stake, target profit, and stop loss values before starting the bot.' }));
             return;
         }
@@ -81,7 +89,7 @@ wss.on('connection', (ws) => {
             ...initialAppState,
             running: true,
             stake: appState.stake,
-            initialStake: appState.initialStake,
+            initialStake: appState.stake,
             MartingaleFactor: appState.MartingaleFactor,
             targetProfit: appState.targetProfit,
             stopLoss: appState.stopLoss,
@@ -90,6 +98,7 @@ wss.on('connection', (ws) => {
             botName: messageStr,
             symbol: botSymbols[messageStr] || 'R_100',
             buyQueue: [],
+            NextTradeCondition: 'Even',
         };
 
         runBotLogic(ws);
@@ -100,6 +109,14 @@ wss.on('connection', (ws) => {
     });
 });
 
+const variableMappings = {
+    'stake': 'gsQah}04l(VNTYJ`*;{Y',
+    'initialStake': 'gsQah}04l(VNTYJ`*;{Y',
+    'MartingaleFactor': '...',
+    'targetProfit': 'oQ~TQa?Dq78]MM},5;*l',
+    'stopLoss': 'ITiw_xSBxuYP6qNF)F|h'
+};
+
 const runBotLogic = async (ws) => {
     const xmlFilePath = path.join(__dirname, 'bot', `${appState.botName}.xml`);
 
@@ -108,6 +125,18 @@ const runBotLogic = async (ws) => {
         const xmlData = await xml2js.parseStringPromise(xml);
 
         initializeVariables(xmlData.xml.variables[0].variable, appState.botName);
+
+        // Move a atribuição de stake para dentro do bloco try-catch 
+        appState.stake = parseFloat(appState.stake);
+        appState.stopLoss = parseFloat(appState.stopLoss);
+        appState.targetProfit = parseFloat(appState.targetProfit);
+
+        const tradeCondition = appState.NextTradeCondition;
+        if (tradeCondition === "Even") {
+            appState.payout = 90;
+        } else if (tradeCondition === "Odd") {
+            appState.payout = 90;
+        }
 
         startTickStream(ws, appState.symbol);
 
@@ -150,16 +179,16 @@ const startTickStream = (ws, symbol) => {
             appState.balance = response.balance.balance;
             console.log(`Saldo anterior: ${appState.previousBalance}`);
             console.log(`Saldo atual: ${appState.balance}`);
-            
+
             if (appState.initialBalance === null) {
                 appState.initialBalance = appState.balance;
             }
 
             const balanceChange = appState.balance - appState.initialBalance;
-            const balanceMessage = balanceChange >= 0 
+            const balanceMessage = balanceChange >= 0
                 ? `Lucro: $${balanceChange.toFixed(2)}`
                 : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
-            
+
             const profitType = balanceChange >= 0 ? 'profit' : 'loss';
 
             ws.send(JSON.stringify({
@@ -204,7 +233,7 @@ const startTickStream = (ws, symbol) => {
             if (appState.running && !appState.buying) {
                 const decision = await askBotForDecision(appState.lastTick, appState.sma);
                 if (decision) {
-                    appState.buyQueue.push({ stake: appState.stake, symbol });
+                    appState.buyQueue.push({ stake: appState.initialStake, symbol });
                     processBuyQueue(derivWs, ws);
                 }
             }
@@ -232,7 +261,7 @@ const startTickStream = (ws, symbol) => {
             appState.totalProfit += profit;
 
             const balanceChange = appState.balance - appState.previousBalance;
-            const balanceMessage = balanceChange >= 0 
+            const balanceMessage = balanceChange >= 0
                 ? `Lucro: $${balanceChange.toFixed(2)}`
                 : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
 
@@ -250,6 +279,29 @@ const startTickStream = (ws, symbol) => {
                 balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
                 balanceChange: balanceMessage
             }));
+
+            if (balanceChange > 0) {
+                appState.initialAmount = appState.WinAmount;
+                ws.send(JSON.stringify({
+                    type: 'new_initialAmount',
+                    new_initialAmount: appState.WinAmount,
+                    profitType: balanceChange >= 0 ? 'profit' : 'loss'
+                }));
+            } else {
+                appState.initialAmount = appState.initialStake;
+                ws.send(JSON.stringify({
+                    type: 'new_initialAmount',
+                    new_initialAmount: appState.initialStake,
+                    profitType: balanceChange >= 0 ? 'profit' : 'loss'
+                }));
+            }
+
+            if (appState.NextTradeCondition === "Even") {
+                appState.NextTradeCondition = "Odd";
+            } else if (appState.NextTradeCondition === "Odd") {
+                appState.NextTradeCondition = "Even";
+            }
+
         }
     });
 
@@ -274,42 +326,61 @@ const processBuyQueue = (derivWs, ws) => {
     const { stake, symbol } = appState.buyQueue.shift();
     requestProposal(derivWs, stake, symbol);
 
-    // Adiciona um intervalo de tempo garantido entre as compras
     setTimeout(() => {
         appState.buying = false;
         processBuyQueue(derivWs, ws);
-    }, 1000); // 1 segundo de intervalo entre as compras
+    }, 1000);
 };
 
 const requestProposal = (derivWs, stake, symbol) => {
-    const amount = parseFloat(stake);
-    if (isNaN(amount) || amount <= 0) {
+    // Adicionando verificação para evitar que a compra seja realizada com stake como NaN. 
+    if (isNaN(stake) || stake === 0) {  
         console.error(`Invalid stake amount: ${stake}`);
         return;
     }
 
-    console.log(`Requesting proposal for amount: ${amount}, symbol: ${symbol}`);
+    const lastDigitPrediction = appState.NextTradeCondition === 'Even' ? 2 : 1;  // Defina aqui!
+
+    console.log(`Requesting proposal for amount: ${stake}, symbol: ${symbol}, lastDigitPrediction: ${lastDigitPrediction}`);
 
     derivWs.send(JSON.stringify({
         "proposal": 1,
-        "amount": amount.toFixed(2),
+        "amount": stake.toFixed(2),  // Usando stake no lugar de amount
         "basis": "stake",
-        "contract_type": "CALL",
+        "contract_type": "DIGITOVER",
         "currency": "USD",
-        "duration": 5,
+        "duration": 1,
         "duration_unit": "t",
-        "symbol": symbol
+        "symbol": symbol,
+        "barrier": lastDigitPrediction.toString() // Use a variável!
     }));
 };
 
-const askBotForDecision = async (lastTick, sma) => {
-    const decision = await new Promise(resolve => {
-        setTimeout(() => {
-            resolve(lastTick > sma);
-        }, 100); 
-    });
-    console.log(`Bot ${appState.botName}: ${decision} (Last tick: ${lastTick}, SMA: ${sma})`);
-    return decision;
+const askBotForDecision = (lastTick, sma) => {
+    const tradeCondition = appState.NextTradeCondition;
+    let buy = false;
+    let payout = 0;
+
+    if (tradeCondition === "Even" &&
+        (lastTick.toString().endsWith("0") || lastTick.toString().endsWith("2") ||
+        lastTick.toString().endsWith("4") || lastTick.toString().endsWith("6") ||
+        lastTick.toString().endsWith("8"))
+    ) {
+        buy = true;
+        payout = 90;
+    }
+    else if (tradeCondition === "Odd" &&
+             (lastTick.toString().endsWith("1") || lastTick.toString().endsWith("3") ||
+             lastTick.toString().endsWith("5") || lastTick.toString().endsWith("7") ||
+             lastTick.toString().endsWith("9"))
+    ) {
+        buy = true;
+        payout = 90;
+    }
+    appState.payout = payout;
+
+    console.log(`Bot ${appState.botName}: ${buy} (Last tick: ${lastTick}, Next Trade Condition: ${appState.NextTradeCondition}, payout: ${appState.payout})`);
+    return buy;
 };
 
 const buyContract = (derivWs, proposalId, stake, ws) => {
@@ -324,12 +395,9 @@ const buyContract = (derivWs, proposalId, stake, ws) => {
 
     derivWs.send(JSON.stringify({
         "buy": proposalId,
-        "price": amount.toFixed(2)
+        "price": amount.toFixed(2),
+        "payout": appState.payout
     }));
-};
-
-const sellContract = (derivWs, contractId, ws) => {
-    derivWs.send(JSON.stringify({ sell: contractId }));
 };
 
 app.get('/api/bots', (req, res) => {
@@ -349,39 +417,16 @@ app.get('/api/bots', (req, res) => {
 const initializeVariables = (variables, botName) => {
     try {
         console.log("Initializing variables from XML...");
-
-        const idMappings = {
-            'bot1': {
-                stake: 'b.8A=Z%v|?!R]8swby2J',
-                initialStake: '[JQ:6ujo0P~5.c48sN/n',
-                MartingaleFactor: 'Qs!p}1o9ynq+8,VB=Oq.',
-                targetProfit: 'z(47tS:MB6xXj~Sa3R7j'
-            },
-            'bot2': {
-                stake: 'W#MDqi;8#K?,S(@3jcX}',
-                initialStake: '.#?I=EeXYD}6l!Cf.gZ6',
-                MartingaleFactor: 'S%:!W?llAvWoj1W/LVa',
-                targetProfit: 'AwHaJ$uP6%gBp!D-t!['
-            },
-        };
-
-        const mapping = idMappings[botName];
-        if (!mapping) {
-            console.error(`No variable mapping found for bot: ${botName}`);
-            return;
-        }
-
         variables.forEach((variable) => {
             const id = variable.$.id;
             const value = parseFloat(variable.$.value);
-            if (id === mapping.stake) {
-                appState.stake = value;
-            } else if (id === mapping.initialStake) {
-                appState.initialStake = value;
-            } else if (id === mapping.MartingaleFactor) {
-                appState.MartingaleFactor = value;
-            } else if (id === mapping.targetProfit) {
-                appState.targetProfit = value;
+
+            for (const varName in variableMappings) {
+                if (variableMappings[varName] === id) {
+                    appState[varName] = value;
+                    console.log(`Variable "${varName}" set to ${value}`);
+                    break;
+                }
             }
         });
 
@@ -432,21 +477,38 @@ const handleError = (ws, message) => {
 
 app.post('/api/config/stake', (req, res) => {
     const { stake } = req.body;
-    appState.stake = parseFloat(stake);
-    console.log(`Stake set to: ${appState.stake}`);
-    res.json({ message: 'Stake updated', stake: appState.stake });
+    console.log(`Received stake: ${stake}`); // Log para verificar o valor recebido
+    const parsedStake = parseFloat(stake);
+    if (!isNaN(parsedStake) && parsedStake > 0) { // Validar o stake
+        appState.stake = parsedStake;
+        appState.initialStake = parsedStake;
+        console.log(`Stake set to: ${appState.stake}`);
+        res.json({ message: 'Stake updated', stake: appState.stake });
+    } else {
+        res.status(400).json({ message: 'Invalid stake amount' });
+    }
 });
 
 app.post('/api/config/stopLoss', (req, res) => {
     const { stopLoss } = req.body;
-    appState.stopLoss = parseFloat(stopLoss);
-    console.log(`Stop Loss set to: ${appState.stopLoss}`);
-    res.json({ message: 'Stop loss updated', stopLoss: appState.stopLoss });
+    const parsedStopLoss = parseFloat(stopLoss);
+    if (!isNaN(parsedStopLoss) && parsedStopLoss > 0) {
+        appState.stopLoss = parsedStopLoss;
+        console.log(`Stop Loss set to: ${appState.stopLoss}`);
+        res.json({ message: 'Stop loss updated', stopLoss: appState.stopLoss });
+    } else {
+        res.status(400).json({ message: 'Invalid stop loss amount' });
+    }
 });
 
 app.post('/api/config/targetProfit', (req, res) => {
     const { targetProfit } = req.body;
-    appState.targetProfit = parseFloat(targetProfit);
-    console.log(`Target Profit set to: ${appState.targetProfit}`);
-    res.json({ message: 'Target profit updated', targetProfit: appState.targetProfit });
+    const parsedTargetProfit = parseFloat(targetProfit);
+    if (!isNaN(parsedTargetProfit) && parsedTargetProfit > 0) {
+        appState.targetProfit = parsedTargetProfit;
+        console.log(`Target Profit set to: ${appState.targetProfit}`);
+        res.json({ message: 'Target profit updated', targetProfit: appState.targetProfit });
+    } else {
+        res.status(400).json({ message: 'Invalid target profit amount' });
+    }
 });
