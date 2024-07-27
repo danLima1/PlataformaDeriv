@@ -60,7 +60,7 @@ function Dashboard() {
   const maxTicks = 25;
 
   useEffect(() => {
-    const websocket = new WebSocket('ws://localhost:3001');
+    const websocket = new WebSocket('ws://localhost:3001/ws');
     setWs(websocket);
 
     websocket.onmessage = (event) => {
@@ -140,14 +140,14 @@ function Dashboard() {
 
   const sendMessage = () => {
     if (ws && selectedBot) {
-      ws.send(selectedBot);
+      ws.send(JSON.stringify({ command: 'start', botName: selectedBot }));
       setBotRunning(true);
     }
   };
 
   const stopBot = () => {
     if (ws) {
-      ws.send('stop');
+      ws.send(JSON.stringify({ command: 'stop' }));
       setBotRunning(false);
     }
   };
@@ -179,7 +179,7 @@ function Dashboard() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ stake }),
+      body: JSON.stringify({ stake: parseFloat(stake) }),
     })
     .then(response => response.json())
     .then(data => {
@@ -195,7 +195,7 @@ function Dashboard() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ stopLoss }),
+      body: JSON.stringify({ stopLoss: parseFloat(stopLoss) }),
     })
     .then(response => response.json())
     .then(data => {
@@ -211,7 +211,7 @@ function Dashboard() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ targetProfit }),
+      body: JSON.stringify({ targetProfit: parseFloat(targetProfit) }),
     })
     .then(response => response.json())
     .then(data => {

@@ -13,7 +13,7 @@ const PORT = 3001;
 const API_TOKEN = process.env.API_TOKEN;
 
 if (!API_TOKEN) {
-    throw new Error('API_TOKEN is not defined in the environment variables');
+  throw new Error('API_TOKEN não está definida nas variáveis de ambiente. Crie um arquivo .env e defina a variável API_TOKEN.');
 }
 
 app.use(cors());
@@ -21,494 +21,485 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 const server = app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 const wss = new Server({ server });
 
 const initialAppState = {
-    stake: 1,
-    initialStake: null,
-    MartingaleFactor: 2,
-    targetProfit: null,
-    stopLoss: null,
-    payout: 0,
-    totalProfit: 0,
-    lowestBalance: null,
-    lowestLoss: null,
-    lastTick: null,
-    sma: null,
-    currentContractId: null,
-    smaHistory: [],
-    balance: null,
-    previousBalance: null,
-    initialBalance: null,
-    running: false,
-    botName: null,
-    symbol: 'R_100',
-    buying: false,
-    buyQueue: [],
-    NextTradeCondition: 'Even',
-};
+  stake: 1,
+  initialStake: null,
+  MartingaleFactor: 2,
+  targetProfit: null,
+  stopLoss: null,
+  totalProfit: 0,
+  lowestBalance: null,
+  lowestLoss: null, 
+  lastTick: null,
+  sma: null,
+  currentContractId: null,
+  smaHistory: [], 
+  balance: null, 
+  previousBalance: null,
+  initialBalance: null, 
+  running: false,
+  botName: null, 
+  symbol: 'R_100',
+  buying: false, 
+  buyQueue: [], 
+  NextTradeCondition: 'Even',
+}; 
 
 let appState = { ...initialAppState };
 
 const botSymbols = {
-    'bot1': 'R_100',
-    'bot2': 'R_50',
-    'bot3': 'R_75',
-};
+  'bot1': 'R_100',
+  'bot2': 'R_50', 
+  'bot3': 'R_75',
+}; 
 
 wss.on('connection', (ws) => {
-    console.log('New client connected');
+  console.log('Novo cliente conectado'); 
 
-    ws.on('message', (message) => {
-        console.log(`Received message => ${message}`);
-        const messageStr = message.toString();
+  ws.on('message', (message) => {
+    console.log(`Mensagem recebida do frontend: ${message}`);
+    const messageStr = message.toString(); 
 
-        if (messageStr === 'stop') {
-            appState.running = false;
-            ws.send(JSON.stringify({ type: 'status', message: 'Bot stopped' }));
-            return;
-        }
+    if (messageStr === 'stop') {
+      appState.running = false;
+      ws.send(JSON.stringify({ type: 'status', message: 'Bot parado' }));
+      return; 
+    } 
 
-        // Verificação de stake antes de iniciar o bot.
-        if (!appState.stake || isNaN(appState.stake)) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Please set a valid stake value.' }));
-            return;
-        } 
+    if (messageStr === 'CALL' || messageStr === 'PUT') { 
+      console.log(`Compra solicitada pelo bot: ${messageStr}`);
+      appState.buyQueue.push({ stake: appState.stake, symbol: appState.symbol, type: messageStr }); 
+    } else { 
+      if (!appState.stake || isNaN(appState.stake)) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Por favor, defina um valor válido para a stake.' }));
+        return; 
+      } 
 
-        if (!appState.targetProfit || !appState.stopLoss) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Configure the stake, target profit, and stop loss values before starting the bot.' }));
-            return;
-        }
+      if (!appState.targetProfit || !appState.stopLoss) { 
+        ws.send(JSON.stringify({ type: 'error', message: 'Configure a stake, o lucro alvo e o stop loss antes de iniciar o bot.' })); 
+        return;
+      } 
 
-        console.log(`Stake: ${appState.stake}, Target Profit: ${appState.targetProfit}, Stop Loss: ${appState.stopLoss}`);
+      console.log(`Stake: ${appState.stake}, Lucro Alvo: ${appState.targetProfit}, Stop Loss: ${appState.stopLoss}`); 
 
-        appState = {
-            ...initialAppState,
-            running: true,
-            stake: appState.stake,
-            initialStake: appState.stake,
-            MartingaleFactor: appState.MartingaleFactor,
-            targetProfit: appState.targetProfit,
-            stopLoss: appState.stopLoss,
-            balance: appState.balance,
-            initialBalance: appState.balance,
-            botName: messageStr,
-            symbol: botSymbols[messageStr] || 'R_100',
-            buyQueue: [],
-            NextTradeCondition: 'Even',
-        };
+      appState = { 
+        ...initialAppState,
+        running: true,
+        stake: appState.stake, 
+        initialStake: appState.stake, 
+        MartingaleFactor: appState.MartingaleFactor,
+        targetProfit: parseFloat(appState.targetProfit),
+        stopLoss: parseFloat(appState.stopLoss),
+        balance: appState.balance, 
+        initialBalance: appState.balance,
+        botName: messageStr, 
+        symbol: botSymbols[messageStr] || 'R_100', 
+        buyQueue: [], 
+        NextTradeCondition: 'Even', 
+      };
 
-        runBotLogic(ws);
-    });
+      runBotLogic(ws);
+    }
+  }); 
 
-    ws.on('close', () => {
-        console.log('Client has disconnected');
-    });
+  ws.on('close', () => {
+    console.log('Cliente desconectado');
+  }); 
 });
 
-const variableMappings = {
-    'stake': 'gsQah}04l(VNTYJ`*;{Y',
-    'initialStake': 'gsQah}04l(VNTYJ`*;{Y',
-    'MartingaleFactor': '...',
-    'targetProfit': 'oQ~TQa?Dq78]MM},5;*l',
-    'stopLoss': 'ITiw_xSBxuYP6qNF)F|h'
+const variableMappings = { 
+  'stake': 'gsQah}04l(VNTYJ`*;{Y',
+  'initialStake': 'gsQah}04l(VNTYJ`*;{Y', 
+  'MartingaleFactor': '...',        
+  'targetProfit': 'oQ~TQa?Dq78]MM},5;*l', 
+  'stopLoss': 'ITiw_xSBxuYP6qNF)F|h',    
 };
 
 const runBotLogic = async (ws) => {
-    const xmlFilePath = path.join(__dirname, 'bot', `${appState.botName}.xml`);
+  const xmlFilePath = path.join(__dirname, 'bot', `${appState.botName}.xml`);
 
-    try {
-        const xml = fs.readFileSync(xmlFilePath, 'utf-8');
-        const xmlData = await xml2js.parseStringPromise(xml);
+  try {
+    const xml = fs.readFileSync(xmlFilePath, 'utf-8');
+    const xmlData = await xml2js.parseStringPromise(xml);
 
-        initializeVariables(xmlData.xml.variables[0].variable, appState.botName);
+    initializeVariables(xmlData.xml.variables[0].variable, appState.botName); 
 
-        // Move a atribuição de stake para dentro do bloco try-catch 
-        appState.stake = parseFloat(appState.stake);
-        appState.stopLoss = parseFloat(appState.stopLoss);
-        appState.targetProfit = parseFloat(appState.targetProfit);
+    
+    appState.stake = parseFloat(appState.stake);
+    appState.stopLoss = parseFloat(appState.stopLoss); 
+    appState.targetProfit = parseFloat(appState.targetProfit);
 
-        const tradeCondition = appState.NextTradeCondition;
-        if (tradeCondition === "Even") {
-            appState.payout = 90;
-        } else if (tradeCondition === "Odd") {
-            appState.payout = 90;
-        }
+    
+    startTickStream(ws, appState.symbol); 
+  } catch (err) {
+    handleError(ws, err.message); 
+  }
+};
 
-        startTickStream(ws, appState.symbol);
+const startTickStream = (ws, symbol) => { 
+  const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
 
-    } catch (err) {
-        handleError(ws, err.message);
+  derivWs.on('open', () => {
+    derivWs.send(JSON.stringify({ authorize: API_TOKEN })); 
+  });
+
+  derivWs.on('message', async (data) => { 
+    const response = JSON.parse(data);
+
+    // Adicione este console.log para depurar as mensagens recebidas
+    // console.log('Mensagem da Deriv:', response);
+
+    if (response.error) { 
+      handleError(ws, response.error.message);
+      return;
+    } 
+
+    if (response.msg_type === 'authorize') { 
+      console.log('Autorizado com sucesso na Deriv!');
+
+      
+      startTickSubscription(derivWs, ws, appState.symbol);
+
+      // Solicita o saldo da conta
+      derivWs.send(JSON.stringify({
+        "balance": 1, 
+        "subscribe": 1
+      }));
+    } 
+
+    if (response.msg_type === 'balance') {
+      appState.previousBalance = appState.balance; 
+      appState.balance = parseFloat(response.balance.balance); 
+
+      if (appState.initialBalance === null) {
+        appState.initialBalance = appState.balance;
+      }
+
+      const balanceChange = appState.balance - appState.initialBalance;
+
+      const profitType = balanceChange >= 0 ? 'profit' : 'loss';
+
+      ws.send(JSON.stringify({
+        type: 'balance',
+        balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
+        balanceChange: balanceChange.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
+        profitType
+      })); 
     }
-};
 
-const startTickStream = (ws, symbol) => {
-    const derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+    if (response.msg_type === 'history') { 
+      updateAppState(response);
+      ws.send(JSON.stringify({ 
+        type: 'history',
+        prices: appState.smaHistory
+      })); 
+    }
 
-    derivWs.on('open', () => {
-        derivWs.send(JSON.stringify({ authorize: API_TOKEN }));
-    });
+    if (response.msg_type === 'tick') {
+      updateAppState(response);
 
-    derivWs.on('message', async (data) => {
-        const response = JSON.parse(data);
+      ws.send(JSON.stringify({
+        type: 'tick',
+        tick: appState.lastTick 
+      })); 
 
-        if (response.error) {
-            handleError(ws, response.error.message);
-            return;
+      
+      if (appState.balance <= appState.stopLoss) {
+        if (appState.running) { 
+          appState.running = false;
+          ws.send(JSON.stringify({ type: 'status', message: 'Stop loss atingido. Bot parado.' })); 
+        } 
+        return; 
+      } 
+
+      if (appState.totalProfit >= appState.targetProfit) {
+        if (appState.running) {
+          appState.running = false; 
+          ws.send(JSON.stringify({ type: 'status', message: 'Lucro alvo atingido. Bot parado.' }));
         }
+        return; 
+      } 
 
-        if (response.msg_type === 'authorize') {
-            console.log('Authorization successful');
-            derivWs.send(JSON.stringify({
-                "ticks_history": symbol,
-                "end": "latest",
-                "count": 100
-            }));
+      
+      if (appState.running && !appState.buying) { 
+        const decision = askBotForDecision(appState.lastTick, appState.sma); 
+        if (decision) { 
+          processBuyQueue(derivWs, ws); 
+        } 
+      } 
+    } 
 
-            derivWs.send(JSON.stringify({
-                "balance": 1,
-                "subscribe": 1
-            }));
-        }
+    if (response.msg_type === 'proposal') { 
+      //console.log("PROPOSAL RECEBIDA: ", response); // DEBUG
+      const decision = askBotForDecision(appState.lastTick, appState.sma); 
 
-        if (response.msg_type === 'balance') {
-            appState.previousBalance = appState.balance;
-            appState.balance = response.balance.balance;
-            console.log(`Saldo anterior: ${appState.previousBalance}`);
-            console.log(`Saldo atual: ${appState.balance}`);
+      if (appState.running && decision && appState.buying) { 
+        buyContract(derivWs, response.proposal.id, appState.stake, ws);
+      }
+    } 
 
-            if (appState.initialBalance === null) {
-                appState.initialBalance = appState.balance;
-            }
+    if (response.msg_type === 'buy') { 
+      appState.previousBalance = appState.balance;
+      appState.currentContractId = response.buy.contract_id; 
 
-            const balanceChange = appState.balance - appState.initialBalance;
-            const balanceMessage = balanceChange >= 0
-                ? `Lucro: $${balanceChange.toFixed(2)}`
-                : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
+      ws.send(JSON.stringify({ 
+        type: 'buy', 
+        contract_id: appState.currentContractId 
+      }));
+    } 
 
-            const profitType = balanceChange >= 0 ? 'profit' : 'loss';
+    if (response.msg_type === 'sell') {
+      const soldFor = parseFloat(response.sell.sold_for); 
+      const profit = soldFor - appState.stake;
+      appState.totalProfit += profit;
 
-            ws.send(JSON.stringify({
-                type: 'balance',
-                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
-                balanceChange: balanceChange.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
-                profitType
-            }));
-        }
-        if (response.msg_type === 'history') {
-            updateAppState(response);
-            ws.send(JSON.stringify({
-                type: 'history',
-                prices: appState.smaHistory
-            }));
-            startTickSubscription(derivWs, ws, symbol);
-        }
+      const balanceChange = appState.balance - appState.previousBalance;
 
-        if (response.msg_type === 'tick') {
-            updateAppState(response);
-            ws.send(JSON.stringify({
-                type: 'tick',
-                tick: appState.lastTick
-            }));
+      ws.send(JSON.stringify({
+        type: 'contract_finalizado',
+        profit: balanceChange.toFixed(2), 
+        profitType: balanceChange >= 0 ? 'profit' : 'loss',
+        balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'), 
+      })); 
 
-            if (appState.balance <= appState.stopLoss) {
-                if (appState.running) {
-                    appState.running = false;
-                    ws.send(JSON.stringify({ type: 'status', message: 'Stop loss reached. Bot stopped.' }));
-                }
-                return;
-            }
+      if (balanceChange > 0) {
+        // Reinicia a stake após um lucro
+        ws.send(JSON.stringify({
+          type: 'new_initialAmount', 
+          new_initialAmount: appState.initialStake,
+          profitType: balanceChange >= 0 ? 'profit' : 'loss'
+        }));
+      } else {
+        
+        appState.stake *= 2.5; 
+        console.log(`Incrementando stake para a próxima tentativa: ${appState.stake.toFixed(2)}`); 
 
-            if (appState.totalProfit >= appState.targetProfit) {
-                if (appState.running) {
-                    appState.running = false;
-                    ws.send(JSON.stringify({ type: 'status', message: 'Target profit reached. Bot stopped.' }));
-                }
-                return;
-            }
+        ws.send(JSON.stringify({ 
+          type: 'new_initialAmount', 
+          new_initialAmount: appState.stake.toFixed(2), 
+          profitType: balanceChange >= 0 ? 'profit' : 'loss'
+        }));
+      }
 
-            if (appState.running && !appState.buying) {
-                const decision = await askBotForDecision(appState.lastTick, appState.sma);
-                if (decision) {
-                    appState.buyQueue.push({ stake: appState.initialStake, symbol });
-                    processBuyQueue(derivWs, ws);
-                }
-            }
-        }
+      if (appState.NextTradeCondition === 'Even') {
+        appState.NextTradeCondition = 'Odd';
+      } else if (appState.NextTradeCondition === 'Odd') { 
+        appState.NextTradeCondition = 'Even'; 
+      } 
+    }
+  }); 
 
-        if (response.msg_type === 'proposal') {
-            const decision = await askBotForDecision(appState.lastTick, appState.sma);
-            if (appState.running && decision && appState.buying) {
-                buyContract(derivWs, response.proposal.id, appState.stake, ws);
-            }
-        }
+  derivWs.on('error', (error) => { 
+    handleError(ws, error.message); 
+  }); 
 
-        if (response.msg_type === 'buy') {
-            appState.previousBalance = appState.balance;
-            appState.currentContractId = response.buy.contract_id;
-            ws.send(JSON.stringify({
-                type: 'buy',
-                contract_id: appState.currentContractId
-            }));
-        }
-
-        if (response.msg_type === 'sell') {
-            const soldFor = parseFloat(response.sell.sold_for);
-            const profit = soldFor - appState.stake;
-            appState.totalProfit += profit;
-
-            const balanceChange = appState.balance - appState.previousBalance;
-            const balanceMessage = balanceChange >= 0
-                ? `Lucro: $${balanceChange.toFixed(2)}`
-                : `Prejuízo: $${(-balanceChange).toFixed(2)}`;
-
-            console.log(`Enviando mensagem ao frontend: ${balanceMessage}`);
-            console.log(`Saldo anterior: ${appState.previousBalance}`);
-            console.log(`Saldo atual: ${appState.balance}`);
-            console.log(`Diferença de saldo: ${balanceChange.toFixed(2)}`);
-            console.log(`Tipo de lucro/prejuízo: ${balanceChange >= 0 ? 'profit' : 'loss'}`);
-
-            ws.send(JSON.stringify({
-                type: 'contract_finalizado',
-                message: balanceMessage,
-                profit: balanceChange.toFixed(2),
-                profitType: balanceChange >= 0 ? 'profit' : 'loss',
-                balance: appState.balance.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'),
-                balanceChange: balanceMessage
-            }));
-
-            if (balanceChange > 0) {
-                appState.initialAmount = appState.WinAmount;
-                ws.send(JSON.stringify({
-                    type: 'new_initialAmount',
-                    new_initialAmount: appState.WinAmount,
-                    profitType: balanceChange >= 0 ? 'profit' : 'loss'
-                }));
-            } else {
-                appState.initialAmount = appState.initialStake;
-                ws.send(JSON.stringify({
-                    type: 'new_initialAmount',
-                    new_initialAmount: appState.initialStake,
-                    profitType: balanceChange >= 0 ? 'profit' : 'loss'
-                }));
-            }
-
-            if (appState.NextTradeCondition === "Even") {
-                appState.NextTradeCondition = "Odd";
-            } else if (appState.NextTradeCondition === "Odd") {
-                appState.NextTradeCondition = "Even";
-            }
-
-        }
-    });
-
-    derivWs.on('error', (error) => {
-        handleError(ws, error.message);
-    });
-};
+  derivWs.on('close', (code, reason) => { 
+    console.log('Conexão com a Deriv fechada. Código:', code, 'Motivo:', reason); 
+  }); 
+}; 
 
 const startTickSubscription = (derivWs, ws, symbol) => {
-    derivWs.send(JSON.stringify({
-        "ticks": symbol,
-        "subscribe": 1
-    }));
+  derivWs.send(JSON.stringify({
+    "ticks": symbol, 
+    "subscribe": 1
+  })); 
+}; 
+
+
+const processBuyQueue = (derivWs, ws) => { 
+  if (appState.buying || appState.buyQueue.length === 0) { 
+    return;
+  }
+
+  appState.buying = true;
+  const { stake, symbol, type } = appState.buyQueue.shift(); 
+
+  // Verifica se o bot ainda quer comprar
+  if (askBotForDecision(appState.lastTick, appState.sma)) {
+    console.log(`Solicitando proposta para ${type}`); // DEBUG
+    requestProposal(derivWs, stake, symbol, type); 
+  } else { 
+    console.log("Compra cancelada pois o bot não autorizou."); 
+    appState.buying = false;
+  }
+
+  // Aguarda 1 segundo antes de processar o próximo item da fila
+  setTimeout(() => {
+    appState.buying = false;
+    processBuyQueue(derivWs, ws); 
+  }, 1000);
+}; 
+
+const requestProposal = (derivWs, stake, symbol, type) => { 
+  const amount = parseFloat(stake); 
+
+  if (isNaN(amount) || amount <= 0) { 
+    console.error(`Valor de stake inválido: ${stake}`);
+    return; 
+  }
+
+  // (Removido - lastDigitPrediction não é mais necessário) 
+
+  derivWs.send(JSON.stringify({
+    "proposal": 1, 
+    "amount": amount.toFixed(2),
+    "basis": "stake",
+    "contract_type": type === 'CALL' ? 'CALL' : 'PUT',
+    "currency": "USD",
+    "duration": 7, 
+    "duration_unit": "t", 
+    "symbol": symbol 
+  }));
 };
 
-const processBuyQueue = (derivWs, ws) => {
-    if (appState.buying || appState.buyQueue.length === 0) {
-        return;
-    }
-
-    appState.buying = true;
-    const { stake, symbol } = appState.buyQueue.shift();
-    requestProposal(derivWs, stake, symbol);
-
-    setTimeout(() => {
-        appState.buying = false;
-        processBuyQueue(derivWs, ws);
-    }, 1000);
-};
-
-const requestProposal = (derivWs, stake, symbol) => {
-    // Adicionando verificação para evitar que a compra seja realizada com stake como NaN. 
-    if (isNaN(stake) || stake === 0) {  
-        console.error(`Invalid stake amount: ${stake}`);
-        return;
-    }
-
-    const lastDigitPrediction = appState.NextTradeCondition === 'Even' ? 2 : 1;  // Defina aqui!
-
-    console.log(`Requesting proposal for amount: ${stake}, symbol: ${symbol}, lastDigitPrediction: ${lastDigitPrediction}`);
-
-    derivWs.send(JSON.stringify({
-        "proposal": 1,
-        "amount": stake.toFixed(2),  // Usando stake no lugar de amount
-        "basis": "stake",
-        "contract_type": "DIGITOVER",
-        "currency": "USD",
-        "duration": 1,
-        "duration_unit": "t",
-        "symbol": symbol,
-        "barrier": lastDigitPrediction.toString() // Use a variável!
-    }));
-};
 
 const askBotForDecision = (lastTick, sma) => {
-    const tradeCondition = appState.NextTradeCondition;
-    let buy = false;
-    let payout = 0;
+  let buy = appState.buyQueue.length > 0;
 
-    if (tradeCondition === "Even" &&
-        (lastTick.toString().endsWith("0") || lastTick.toString().endsWith("2") ||
-        lastTick.toString().endsWith("4") || lastTick.toString().endsWith("6") ||
-        lastTick.toString().endsWith("8"))
-    ) {
-        buy = true;
-        payout = 90;
-    }
-    else if (tradeCondition === "Odd" &&
-             (lastTick.toString().endsWith("1") || lastTick.toString().endsWith("3") ||
-             lastTick.toString().endsWith("5") || lastTick.toString().endsWith("7") ||
-             lastTick.toString().endsWith("9"))
-    ) {
-        buy = true;
-        payout = 90;
-    }
-    appState.payout = payout;
+  console.log(`Bot ${appState.botName}: ${buy} (Último tick: ${lastTick}, Próxima Condição de Negociação: ${appState.NextTradeCondition})`); 
 
-    console.log(`Bot ${appState.botName}: ${buy} (Last tick: ${lastTick}, Next Trade Condition: ${appState.NextTradeCondition}, payout: ${appState.payout})`);
-    return buy;
-};
+  return buy; 
+}; 
+
 
 const buyContract = (derivWs, proposalId, stake, ws) => {
-    const amount = parseFloat(stake);
-    if (isNaN(amount) || amount <= 0) {
-        console.error(`Invalid stake amount: ${stake}`);
-        handleError(ws, `Invalid stake amount: ${stake}`);
-        return;
-    }
+  const amount = parseFloat(stake);
 
-    console.log(`Buying contract with proposal ID: ${proposalId}, amount: ${amount}`);
+  if (isNaN(amount) || amount <= 0) { 
+    console.error(`Valor de stake inválido: ${stake}`); 
+    handleError(ws, `Valor de stake inválido: ${stake}`); 
+    return; 
+  } 
 
-    derivWs.send(JSON.stringify({
-        "buy": proposalId,
-        "price": amount.toFixed(2),
-        "payout": appState.payout
-    }));
+  console.log(`Comprando contrato com ID de proposta: ${proposalId}, amount: ${amount}`); 
+
+  derivWs.send(JSON.stringify({ 
+    "buy": proposalId,
+    "price": amount.toFixed(2)
+  })); 
 };
 
 app.get('/api/bots', (req, res) => {
-    const botDirectory = path.join(__dirname, 'bot');
-    console.log(`Listing bots in directory: ${botDirectory}`);
-    fs.readdir(botDirectory, (err, files) => {
-        if (err) {
-            console.error('Failed to list bots:', err);
-            return res.status(500).json({ error: 'Failed to list bots' });
-        }
-        const botFiles = files.filter(file => file.endsWith('.xml')).map(file => path.basename(file, '.xml'));
-        console.log('Bots found:', botFiles);
-        res.json(botFiles);
-    });
-});
+  const botDirectory = path.join(__dirname, 'bot');
+  console.log(`Listando bots no diretório: ${botDirectory}`);
 
-const initializeVariables = (variables, botName) => {
-    try {
-        console.log("Initializing variables from XML...");
-        variables.forEach((variable) => {
-            const id = variable.$.id;
-            const value = parseFloat(variable.$.value);
-
-            for (const varName in variableMappings) {
-                if (variableMappings[varName] === id) {
-                    appState[varName] = value;
-                    console.log(`Variable "${varName}" set to ${value}`);
-                    break;
-                }
-            }
-        });
-
-        console.log('Initialized variables:', appState);
-
-    } catch (error) {
-        console.error('Failed to initialize variables:', error.message);
+  fs.readdir(botDirectory, (err, files) => {
+    if (err) { 
+      console.error('Erro ao listar bots:', err); 
+      return res.status(500).json({ error: 'Erro ao listar bots.' }); 
     }
+
+    const botFiles = files
+      .filter(file => file.endsWith('.xml')) 
+      .map(file => path.basename(file, '.xml'));
+
+    console.log('Bots encontrados:', botFiles); 
+    res.json(botFiles);
+  });
+}); 
+
+
+const initializeVariables = (variables, botName) => { 
+  try { 
+    console.log('Inicializando variáveis do XML...');
+    variables.forEach(variable => {
+      const id = variable.$.id; 
+      const value = parseFloat(variable.$.value);
+
+      for (const varName in variableMappings) {
+        if (variableMappings[varName] === id) { 
+          appState[varName] = value;
+          console.log(`Variável "${varName}" definida para ${value}`);
+          break;
+        } 
+      } 
+    }); 
+
+    console.log('Variáveis inicializadas:', appState); 
+
+  } catch (error) {
+    console.error('Falha ao inicializar variáveis:', error.message); 
+  }
 };
 
-const updateAppState = (response) => {
-    if (response.msg_type === 'history') {
-        const history = response.history;
-        const prices = history.prices.map(parseFloat);
-        appState.smaHistory = calculateSMA(prices, 10);
-    } else if (response.msg_type === 'tick') {
-        const tick = response.tick;
-        appState.lastTick = parseFloat(tick.quote);
-        if (appState.smaHistory.length >= 10) {
-            appState.sma = calculateSMA([appState.lastTick, ...appState.smaHistory], 10).slice(-1)[0];
-        }
+
+const updateAppState = (response) => { 
+  if (response.msg_type === 'history') {
+    const history = response.history;
+    const prices = history.prices.map(parseFloat); 
+    appState.smaHistory = calculateSMA(prices, 10); 
+  } else if (response.msg_type === 'tick') {
+    const tick = response.tick; 
+    appState.lastTick = parseFloat(tick.quote);
+    if (appState.smaHistory.length >= 10) {
+      appState.sma = calculateSMA([appState.lastTick, ...appState.smaHistory], 10).slice(-1)[0];
     }
+  } 
 };
 
 const calculateSMA = (data, period) => {
-    if (data.length < period) return [];
+  if (data.length < period) return []; 
 
-    let sum = 0;
-    const sma = [];
+  let sum = 0;
+  const sma = []; 
 
-    for (let i = 0; i < data.length; i++) {
-        sum += data[i];
-        if (i >= period - 1) {
-            if (i >= period) {
-                sum -= data[i - period];
-            }
-            sma.push(sum / period);
-        }
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i];
+    if (i >= period - 1) { 
+      if (i >= period) {
+        sum -= data[i - period];
+      }
+      sma.push(sum / period); 
     }
+  }
 
-    return sma;
+  return sma; 
 };
 
 const handleError = (ws, message) => {
-    console.error(message);
-    ws.send(JSON.stringify({ type: 'error', message }));
+  console.error(message); 
+  ws.send(JSON.stringify({ type: 'error', message }));
 };
 
+// Rotas da API para configurar o bot
 app.post('/api/config/stake', (req, res) => {
-    const { stake } = req.body;
-    console.log(`Received stake: ${stake}`); // Log para verificar o valor recebido
-    const parsedStake = parseFloat(stake);
-    if (!isNaN(parsedStake) && parsedStake > 0) { // Validar o stake
-        appState.stake = parsedStake;
-        appState.initialStake = parsedStake;
-        console.log(`Stake set to: ${appState.stake}`);
-        res.json({ message: 'Stake updated', stake: appState.stake });
-    } else {
-        res.status(400).json({ message: 'Invalid stake amount' });
-    }
+  const parsedStake = parseFloat(req.body.stake);
+
+  if (!isNaN(parsedStake) && parsedStake > 0) { 
+    appState.stake = parsedStake; 
+    appState.initialStake = parsedStake;
+    console.log(`Stake atualizada para: ${appState.stake}`); 
+    res.json({ message: 'Stake atualizada', stake: appState.stake });
+  } else { 
+    res.status(400).json({ message: 'Valor de stake inválido.' });
+  } 
 });
 
 app.post('/api/config/stopLoss', (req, res) => {
-    const { stopLoss } = req.body;
-    const parsedStopLoss = parseFloat(stopLoss);
-    if (!isNaN(parsedStopLoss) && parsedStopLoss > 0) {
-        appState.stopLoss = parsedStopLoss;
-        console.log(`Stop Loss set to: ${appState.stopLoss}`);
-        res.json({ message: 'Stop loss updated', stopLoss: appState.stopLoss });
-    } else {
-        res.status(400).json({ message: 'Invalid stop loss amount' });
-    }
+  const parsedStopLoss = parseFloat(req.body.stopLoss); 
+
+  if (!isNaN(parsedStopLoss) && parsedStopLoss > 0) {
+    appState.stopLoss = parsedStopLoss;
+    console.log(`Stop Loss atualizado para: ${appState.stopLoss}`); 
+    res.json({ message: 'Stop Loss atualizado', stopLoss: appState.stopLoss }); 
+  } else { 
+    res.status(400).json({ message: 'Valor de Stop Loss inválido.' });
+  } 
 });
 
-app.post('/api/config/targetProfit', (req, res) => {
-    const { targetProfit } = req.body;
-    const parsedTargetProfit = parseFloat(targetProfit);
-    if (!isNaN(parsedTargetProfit) && parsedTargetProfit > 0) {
-        appState.targetProfit = parsedTargetProfit;
-        console.log(`Target Profit set to: ${appState.targetProfit}`);
-        res.json({ message: 'Target profit updated', targetProfit: appState.targetProfit });
-    } else {
-        res.status(400).json({ message: 'Invalid target profit amount' });
-    }
-});
+app.post('/api/config/targetProfit', (req, res) => { 
+  const parsedTargetProfit = parseFloat(req.body.targetProfit);
+
+  if (!isNaN(parsedTargetProfit) && parsedTargetProfit > 0) {
+    appState.targetProfit = parsedTargetProfit;
+    console.log(`Lucro Alvo atualizado para: ${appState.targetProfit}`);
+    res.json({ message: 'Lucro Alvo atualizado', targetProfit: appState.targetProfit }); 
+  } else {
+    res.status(400).json({ message: 'Valor de Lucro Alvo inválido.' });
+  }
+}); 
