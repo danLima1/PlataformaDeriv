@@ -14,6 +14,7 @@ import {
   IconButton,
   DialogActions,
   TextField,
+  LinearProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -56,6 +57,7 @@ function Dashboard() {
       tension: 0.1,
     }],
   });
+  const [progress, setProgress] = useState(0);
 
   const maxTicks = 25;
 
@@ -74,12 +76,16 @@ function Dashboard() {
                     value: data.balanceChange,
                     type: data.profitType,
                 });
+                console.log("Balance update received:", data.balanceChange);
             } else if (data.type === 'contract_finalizado') {
                 setProfit({
                     value: data.profit,
                     type: data.profitType,
                 });
                 setBalance(data.balance);
+                setProgress(100); // Complete the progress when a contract is finalized
+                setTimeout(() => setProgress(0), 500); // Reset progress after a short delay
+                console.log("Contract finalized:", data.profit);
             } else if (data.type === 'tick') {
                 const tickValue = data.tick;
                 setChartData(prevChartData => {
@@ -109,10 +115,18 @@ function Dashboard() {
                         }],
                     };
                 });
+                setProgress(prev => (prev < 90 ? prev + 10 : 90)); // Increment progress while analyzing
+                console.log("Tick received:", tickValue);
             } else if (data.type === 'error') {
                 setResponses(prev => [...prev, `Error: ${data.message}`]);
+                console.log("Error received:", data.message);
             } else if (data.type === 'status') {
                 setResponses(prev => [...prev, data.message]);
+                if (data.message === "Bot stopped") {
+                    setBotRunning(false);
+                    setProgress(0);
+                }
+                console.log("Status received:", data.message);
             } else {
                 setResponses(prev => [...prev, event.data]);
             }
@@ -142,13 +156,15 @@ function Dashboard() {
     if (ws && selectedBot) {
       ws.send(JSON.stringify({ command: 'start', botName: selectedBot }));
       setBotRunning(true);
+      setProgress(10); // Start progress when the bot starts
+      console.log("Sent start command for bot:", selectedBot);
     }
   };
 
   const stopBot = () => {
     if (ws) {
       ws.send(JSON.stringify({ command: 'stop' }));
-      setBotRunning(false);
+      console.log("Sent stop command");
     }
   };
 
@@ -214,7 +230,7 @@ function Dashboard() {
       body: JSON.stringify({ targetProfit: parseFloat(targetProfit) }),
     })
     .then(response => response.json())
-    .then(data => {
+    .then((data) => {
       console.log('Target Profit updated:', data);
       setResponses(prev => [...prev, `Target Profit updated to: ${targetProfit}`]);
     })
@@ -442,7 +458,6 @@ function Dashboard() {
                 <i className="fa-solid fa-gear" onClick={handleOpenConfig}></i>
               )}
             </div>
-         
           </div>
           {selectedBot && (
             <div className="audio-player">
@@ -451,76 +466,75 @@ function Dashboard() {
               </div>
               <div className="info">
                 <div className="title">{selectedBot}</div>
-             
               </div>
               <Button onClick={botRunning ? stopBot : sendMessage} variant="contained" color="primary">
-            
-              <FontAwesomeIcon icon={botRunning ? faStop : faPlay} />
-</Button>
+                <FontAwesomeIcon icon={botRunning ? faStop : faPlay} />
+              </Button>
+              {botRunning && <LinearProgress variant="determinate" value={progress} sx={{ width: '100%', marginTop: 1 }} />}
             </div>
           )}
         </div>
 
         <Dialog
-  open={open}
-  onClose={handleClose}
-  fullWidth
-  sx={{
-    '& .MuiDialog-paper': {
-      width: '75%',
-      maxWidth: 'none', // Remove qualquer limitação de largura máxima
-      backgroundColor: '#212529',
-    },
-  }}
->
-  <DialogTitle sx={{ color: '#fff' }}>
-    Bots Disponíveis
-    <IconButton
-      aria-label="close"
-      onClick={handleClose}
-      sx={{
-        position: 'absolute',
-        right: 8,
-        top: 8,
-        color: (theme) => theme.palette.grey[500],
-      }}
-    >
-      <CloseIcon sx={{ color: '#fff' }} />
-    </IconButton>
-  </DialogTitle>
-  <DialogContent dividers sx={{ color: '#fff' }}>
-    <Grid container spacing={2}>
-      {bots.map((bot, index) => (
-        <Grid item xs={12} sm={6} key={index}>
-          <Paper
-            onClick={() => handleBotClick(bot)}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: 2,
-              cursor: 'pointer',
-              backgroundColor: 'rgba(52, 58, 64, 0)', // Cor com transparência
-              '&:hover': {
-                backgroundColor: 'rgba(73, 80, 87, 0.7)', // Cor com transparência no hover
-              },
-            }}
-          >
-            <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
-            <Typography variant="body1" component="div" sx={{ flexGrow: 1 }}>
-              {bot}
-            </Typography>
-            <ArrowForwardIosIcon sx={{ color: '#fff' }} />
-          </Paper>
-        </Grid>
-      ))}
-    </Grid>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={handleClose} color="primary">
-      Fechar
-    </Button>
-  </DialogActions>
-</Dialog>
+          open={open}
+          onClose={handleClose}
+          fullWidth
+          sx={{
+            '& .MuiDialog-paper': {
+              width: '75%',
+              maxWidth: 'none',
+              backgroundColor: '#212529',
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: '#fff' }}>
+            Bots Disponíveis
+            <IconButton
+              aria-label="close"
+              onClick={handleClose}
+              sx={{
+                position: 'absolute',
+                right: 8,
+                top: 8,
+                color: (theme) => theme.palette.grey[500],
+              }}
+            >
+              <CloseIcon sx={{ color: '#fff' }} />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers sx={{ color: '#fff' }}>
+            <Grid container spacing={2}>
+              {bots.map((bot, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <Paper
+                    onClick={() => handleBotClick(bot)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: 2,
+                      cursor: 'pointer',
+                      backgroundColor: 'rgba(52, 58, 64, 0)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(73, 80, 87, 0.7)',
+                      },
+                    }}
+                  >
+                    <RobotIcon sx={{ marginRight: 2, color: '#ff0' }} />
+                    <Typography variant="body1" component="div" sx={{ flexGrow: 1 }}>
+                      {bot}
+                    </Typography>
+                    <ArrowForwardIosIcon sx={{ color: '#fff' }} />
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleClose} color="primary">
+              Fechar
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         <Dialog open={configOpen} onClose={handleCloseConfig} fullWidth maxWidth="sm">
           <DialogTitle>
